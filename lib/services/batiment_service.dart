@@ -1,13 +1,12 @@
-// services/specialite_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-class SpecialiteService {
+class BatimentService {
   static const String baseUrl = 'http://10.0.2.2:8000/api';
 
-  // Récupérer toutes les spécialités
-  static Future<List<Map<String, dynamic>>> getAllSpecialites() async {
+  // Récupérer tous les bâtiments
+  static Future<List<Map<String, dynamic>>> getAllBatiments() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token') ??
@@ -25,7 +24,7 @@ class SpecialiteService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/admin/specialites'),
+        Uri.parse('$baseUrl/admin/batiments'),
         headers: headers,
       );
 
@@ -35,28 +34,30 @@ class SpecialiteService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        if (data['success'] == true && data['data'] is List) {
+        if (data is List) {
+          // Ici data est directement une liste JSON
+          return List<Map<String, dynamic>>.from(data);
+        } else if (data is Map && data['data'] is List) {
+          // Si tu as un objet enveloppant avec "data"
           return List<Map<String, dynamic>>.from(data['data']);
         } else {
-          // Essayer avec l'endpoint commun si l'admin ne fonctionne pas
-          return await _getSpecialitesCommun();
+          // Sinon fallback
+          return await _getBatimentsCommun();
         }
       } else {
-        // Essayer avec l'endpoint commun
-        return await _getSpecialitesCommun();
+        return await _getBatimentsCommun();
       }
     } catch (e) {
-      print('❌ Erreur getAllSpecialites: $e');
-      // Essayer avec l'endpoint commun en cas d'erreur
-      return await _getSpecialitesCommun();
+      print('❌ Erreur getAllBatiments: $e');
+      return await _getBatimentsCommun();
     }
   }
 
-  // Endpoint de fallback
-  static Future<List<Map<String, dynamic>>> _getSpecialitesCommun() async {
+  // Endpoint fallback pour récupérer les bâtiments
+  static Future<List<Map<String, dynamic>>> _getBatimentsCommun() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/common/specialites'),
+        Uri.parse('$baseUrl/common/batiments'),
         headers: {'Accept': 'application/json'},
       );
 
@@ -70,15 +71,15 @@ class SpecialiteService {
       }
       return [];
     } catch (e) {
-      print('❌ Erreur _getSpecialitesCommun: $e');
+      print('❌ Erreur _getBatimentsCommun: $e');
       return [];
     }
   }
 
-  // Créer une nouvelle spécialité
-  static Future<Map<String, dynamic>> createSpecialite(Map<String, String?> specialiteData, {
+  // Créer un nouveau bâtiment
+  static Future<Map<String, dynamic>> createBatiment({
     required String intitule,
-    String? description,
+    required String adresse,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -99,11 +100,11 @@ class SpecialiteService {
 
       final body = jsonEncode({
         'intitule': intitule,
-        'description': description,
+        'adresse': adresse,
       });
 
       final response = await http.post(
-        Uri.parse('$baseUrl/admin/specialites'),
+        Uri.parse('$baseUrl/admin/batiments'),
         headers: headers,
         body: body,
       );
@@ -111,28 +112,49 @@ class SpecialiteService {
       print('🔍 Create response status: ${response.statusCode}');
       print('🔍 Create response body: ${response.body}');
 
+      // ✅ CORRECTION : Gérer la réponse selon sa structure réelle
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          return data['data'];
-        } else {
-          throw Exception(data['message'] ?? 'Erreur lors de la création');
+
+        // Votre API retourne directement l'objet créé
+        // {"intitule":"Batiment D","updated_at":"...","created_at":"...","id":5}
+        if (data is Map<String, dynamic>) {
+          // Si la réponse a une structure avec success/data
+          if (data.containsKey('success') && data['success'] == true) {
+            return data['data'] ?? data;
+          }
+          // Si la réponse est directement l'objet créé (votre cas)
+          else if (data.containsKey('id')) {
+            return data;
+          }
+          // Si il y a une erreur dans la réponse
+          else if (data.containsKey('message')) {
+            throw Exception(data['message']);
+          }
         }
+
+        // Fallback - retourner la data telle quelle
+        return data;
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Erreur lors de la création');
+        throw Exception(errorData['message'] ?? 'Erreur lors de la création (${response.statusCode})');
       }
     } catch (e) {
-      print('❌ Erreur createSpecialite: $e');
-      throw Exception('Erreur lors de la création: $e');
+      print('❌ Erreur createBatiment: $e');
+      // Ne pas double-wrapper l'exception
+      if (e is Exception) {
+        rethrow;
+      } else {
+        throw Exception('Erreur lors de la création: $e');
+      }
     }
   }
 
-  // Modifier une spécialité
-  static Future<Map<String, dynamic>> updateSpecialite({
+  // Modifier un bâtiment
+  static Future<Map<String, dynamic>> updateBatiment({
     required int id,
     required String intitule,
-    String? description,
+    required String adresse,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -153,11 +175,11 @@ class SpecialiteService {
 
       final body = jsonEncode({
         'intitule': intitule,
-        'description': description,
+        'adresse': adresse,
       });
 
       final response = await http.put(
-        Uri.parse('$baseUrl/admin/specialites/$id'),
+        Uri.parse('$baseUrl/admin/batiments/$id'),
         headers: headers,
         body: body,
       );
@@ -167,23 +189,35 @@ class SpecialiteService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          return data['data'];
-        } else {
-          throw Exception(data['message'] ?? 'Erreur lors de la modification');
+
+        // Même logique que pour create
+        if (data is Map<String, dynamic>) {
+          if (data.containsKey('success') && data['success'] == true) {
+            return data['data'] ?? data;
+          } else if (data.containsKey('id')) {
+            return data;
+          } else if (data.containsKey('message')) {
+            throw Exception(data['message']);
+          }
         }
+
+        return data;
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Erreur lors de la modification');
+        throw Exception(errorData['message'] ?? 'Erreur lors de la modification (${response.statusCode})');
       }
     } catch (e) {
-      print('❌ Erreur updateSpecialite: $e');
-      throw Exception('Erreur lors de la modification: $e');
+      print('❌ Erreur updateBatiment: $e');
+      if (e is Exception) {
+        rethrow;
+      } else {
+        throw Exception('Erreur lors de la modification: $e');
+      }
     }
   }
 
-  // Supprimer une spécialité
-  static Future<bool> deleteSpecialite(int id) async {
+  // Supprimer un bâtiment
+  static Future<bool> deleteBatiment(int id) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token') ??
@@ -202,28 +236,41 @@ class SpecialiteService {
       };
 
       final response = await http.delete(
-        Uri.parse('$baseUrl/admin/specialites/$id'),
+        Uri.parse('$baseUrl/admin/batiments/$id'),
         headers: headers,
       );
 
       print('🔍 Delete response status: ${response.statusCode}');
       print('🔍 Delete response body: ${response.body}');
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        // Code 204 = No Content (suppression réussie sans contenu)
+        if (response.statusCode == 204) {
+          return true;
+        }
+
         final data = jsonDecode(response.body);
-        return data['success'] == true;
+        // Gérer différentes structures de réponse
+        if (data is Map) {
+          return data['success'] == true || data.containsKey('message');
+        }
+        return true;
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Erreur lors de la suppression');
+        throw Exception(errorData['message'] ?? 'Erreur lors de la suppression (${response.statusCode})');
       }
     } catch (e) {
-      print('❌ Erreur deleteSpecialite: $e');
-      throw Exception('Erreur lors de la suppression: $e');
+      print('❌ Erreur deleteBatiment: $e');
+      if (e is Exception) {
+        rethrow;
+      } else {
+        throw Exception('Erreur lors de la suppression: $e');
+      }
     }
   }
 
-  // Récupérer une spécialité par ID
-  static Future<Map<String, dynamic>?> getSpecialiteById(int id) async {
+  // Récupérer un bâtiment par ID
+  static Future<Map<String, dynamic>?> getBatimentById(int id) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token') ??
@@ -241,19 +288,27 @@ class SpecialiteService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/admin/specialites/$id'),
+        Uri.parse('$baseUrl/admin/batiments/$id'),
         headers: headers,
       );
 
+      print('🔍 GetById response status: ${response.statusCode}');
+      print('🔍 GetById response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          return data['data'];
+
+        if (data is Map<String, dynamic>) {
+          if (data.containsKey('success') && data['success'] == true) {
+            return data['data'];
+          } else if (data.containsKey('id')) {
+            return data;
+          }
         }
       }
       return null;
     } catch (e) {
-      print('❌ Erreur getSpecialiteById: $e');
+      print('❌ Erreur getBatimentById: $e');
       return null;
     }
   }

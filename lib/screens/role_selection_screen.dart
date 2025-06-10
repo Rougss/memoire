@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:memoire/screens/create_directeur.dart';
 import 'create_formateur_screen.dart';
 import 'create_eleve_screen.dart';
 import 'create_surveillant_screen.dart';
@@ -74,6 +75,19 @@ class RoleSelectionScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const CreateSurveillantScreen(),
+                      ),
+                    ),
+                  ),
+                  _buildRoleCard(
+                    context: context,
+                    title: 'Directeur',
+                    description: 'Emplois du temps',
+                    icon: Icons.person_4_sharp,
+                    color: Colors.purple.shade300,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CreateDirecteur(),
                       ),
                     ),
                   ),

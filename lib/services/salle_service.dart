@@ -1,13 +1,12 @@
-// services/specialite_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-class SpecialiteService {
+class SalleService {
   static const String baseUrl = 'http://10.0.2.2:8000/api';
 
-  // Récupérer toutes les spécialités
-  static Future<List<Map<String, dynamic>>> getAllSpecialites() async {
+  // Récupérer toutes les salles
+  static Future<List<Map<String, dynamic>>> getAllSalles() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token') ??
@@ -25,7 +24,7 @@ class SpecialiteService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/admin/specialites'),
+        Uri.parse('$baseUrl/admin/salles'),
         headers: headers,
       );
 
@@ -35,28 +34,30 @@ class SpecialiteService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        if (data['success'] == true && data['data'] is List) {
+        if (data is List) {
+          // Ici data est directement une liste JSON
+          return List<Map<String, dynamic>>.from(data);
+        } else if (data is Map && data['data'] is List) {
+          // Si tu as un objet enveloppant avec "data"
           return List<Map<String, dynamic>>.from(data['data']);
         } else {
-          // Essayer avec l'endpoint commun si l'admin ne fonctionne pas
-          return await _getSpecialitesCommun();
+          // Sinon fallback
+          return await _getSallesCommun();
         }
       } else {
-        // Essayer avec l'endpoint commun
-        return await _getSpecialitesCommun();
+        return await _getSallesCommun();
       }
     } catch (e) {
-      print('❌ Erreur getAllSpecialites: $e');
-      // Essayer avec l'endpoint commun en cas d'erreur
-      return await _getSpecialitesCommun();
+      print('❌ Erreur getAllSalles: $e');
+      return await _getSallesCommun();
     }
   }
 
-  // Endpoint de fallback
-  static Future<List<Map<String, dynamic>>> _getSpecialitesCommun() async {
+  // Endpoint fallback pour récupérer les salles
+  static Future<List<Map<String, dynamic>>> _getSallesCommun() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/common/specialites'),
+        Uri.parse('$baseUrl/common/salles'),
         headers: {'Accept': 'application/json'},
       );
 
@@ -70,15 +71,16 @@ class SpecialiteService {
       }
       return [];
     } catch (e) {
-      print('❌ Erreur _getSpecialitesCommun: $e');
+      print('❌ Erreur _getSallesCommun: $e');
       return [];
     }
   }
 
-  // Créer une nouvelle spécialité
-  static Future<Map<String, dynamic>> createSpecialite(Map<String, String?> specialiteData, {
+  // Créer une nouvelle salle - VERSION CORRIGÉE
+  static Future createSalle({
     required String intitule,
-    String? description,
+    required int nombreDePlace,
+    required int batimentId,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -99,11 +101,12 @@ class SpecialiteService {
 
       final body = jsonEncode({
         'intitule': intitule,
-        'description': description,
+        'nombre_de_place': nombreDePlace,
+        'batiment_id': batimentId,
       });
 
       final response = await http.post(
-        Uri.parse('$baseUrl/admin/specialites'),
+        Uri.parse('$baseUrl/admin/salles'),
         headers: headers,
         body: body,
       );
@@ -113,26 +116,37 @@ class SpecialiteService {
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          return data['data'];
+
+        // Vérifier si c'est un objet avec success/data
+        if (data is Map && data.containsKey('success')) {
+          if (data['success'] == true) {
+            return data['data'];
+          } else {
+            throw Exception(data['message'] ?? 'Erreur lors de la création');
+          }
+        }
+        // Sinon, retourner directement l'objet (cas de ton API)
+        else if (data is Map) {
+          return data;
         } else {
-          throw Exception(data['message'] ?? 'Erreur lors de la création');
+          throw Exception('Format de réponse inattendu');
         }
       } else {
         final errorData = jsonDecode(response.body);
         throw Exception(errorData['message'] ?? 'Erreur lors de la création');
       }
     } catch (e) {
-      print('❌ Erreur createSpecialite: $e');
+      print('❌ Erreur createSalle: $e');
       throw Exception('Erreur lors de la création: $e');
     }
   }
 
-  // Modifier une spécialité
-  static Future<Map<String, dynamic>> updateSpecialite({
+  // Modifier une salle - VERSION CORRIGÉE
+  static Future updateSalle({
     required int id,
     required String intitule,
-    String? description,
+    required int nombreDePlace,
+    required int batimentId,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -153,11 +167,12 @@ class SpecialiteService {
 
       final body = jsonEncode({
         'intitule': intitule,
-        'description': description,
+        'nombre_de_place': nombreDePlace,
+        'batiment_id': batimentId,
       });
 
       final response = await http.put(
-        Uri.parse('$baseUrl/admin/specialites/$id'),
+        Uri.parse('$baseUrl/admin/salles/$id'),
         headers: headers,
         body: body,
       );
@@ -167,23 +182,33 @@ class SpecialiteService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          return data['data'];
+
+        // Vérifier si c'est un objet avec success/data
+        if (data is Map && data.containsKey('success')) {
+          if (data['success'] == true) {
+            return data['data'];
+          } else {
+            throw Exception(data['message'] ?? 'Erreur lors de la modification');
+          }
+        }
+        // Sinon, retourner directement l'objet
+        else if (data is Map) {
+          return data;
         } else {
-          throw Exception(data['message'] ?? 'Erreur lors de la modification');
+          throw Exception('Format de réponse inattendu');
         }
       } else {
         final errorData = jsonDecode(response.body);
         throw Exception(errorData['message'] ?? 'Erreur lors de la modification');
       }
     } catch (e) {
-      print('❌ Erreur updateSpecialite: $e');
+      print('❌ Erreur updateSalle: $e');
       throw Exception('Erreur lors de la modification: $e');
     }
   }
 
-  // Supprimer une spécialité
-  static Future<bool> deleteSpecialite(int id) async {
+  // Supprimer une salle - VERSION CORRIGÉE
+  static Future<bool> deleteSalle(int id) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token') ??
@@ -202,28 +227,41 @@ class SpecialiteService {
       };
 
       final response = await http.delete(
-        Uri.parse('$baseUrl/admin/specialites/$id'),
+        Uri.parse('$baseUrl/admin/salles/$id'),
         headers: headers,
       );
 
       print('🔍 Delete response status: ${response.statusCode}');
       print('🔍 Delete response body: ${response.body}');
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        // Si pas de contenu (204) c'est OK
+        if (response.statusCode == 204) {
+          return true;
+        }
+
         final data = jsonDecode(response.body);
-        return data['success'] == true;
+
+        // Vérifier si c'est un objet avec success
+        if (data is Map && data.containsKey('success')) {
+          return data['success'] == true;
+        }
+        // Sinon considérer comme succès si status 200
+        else {
+          return true;
+        }
       } else {
         final errorData = jsonDecode(response.body);
         throw Exception(errorData['message'] ?? 'Erreur lors de la suppression');
       }
     } catch (e) {
-      print('❌ Erreur deleteSpecialite: $e');
+      print('❌ Erreur deleteSalle: $e');
       throw Exception('Erreur lors de la suppression: $e');
     }
   }
 
-  // Récupérer une spécialité par ID
-  static Future<Map<String, dynamic>?> getSpecialiteById(int id) async {
+  // Récupérer une salle par ID - VERSION CORRIGÉE
+  static Future getSalleById(int id) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? token = prefs.getString('auth_token') ??
@@ -241,19 +279,30 @@ class SpecialiteService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/admin/specialites/$id'),
+        Uri.parse('$baseUrl/admin/salles/$id'),
         headers: headers,
       );
 
+      print('🔍 GetById response status: ${response.statusCode}');
+      print('🔍 GetById response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          return data['data'];
+
+        // Vérifier si c'est un objet avec success/data
+        if (data is Map && data.containsKey('success')) {
+          if (data['success'] == true) {
+            return data['data'];
+          }
+        }
+        // Sinon, retourner directement l'objet
+        else if (data is Map) {
+          return data;
         }
       }
       return null;
     } catch (e) {
-      print('❌ Erreur getSpecialiteById: $e');
+      print('❌ Erreur getSalleById: $e');
       return null;
     }
   }
