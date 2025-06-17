@@ -1,3 +1,5 @@
+// lib/administrateur/formateur_dashboard.dart
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -150,7 +152,7 @@ class _FormateurDashboardState extends State<FormateurDashboard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Bienvenue Formateur',
+                      'Bienvenue Chef de Département',
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.white.withOpacity(0.9),
@@ -174,8 +176,8 @@ class _FormateurDashboardState extends State<FormateurDashboard> {
           Row(
             children: [
               _buildInfoChip(
-                icon: Icons.school,
-                label: "Formateur",
+                icon: Icons.business_center,
+                label: "Chef de Département",
                 color: Colors.white,
               ),
               if (user?['matricule'] != null) ...[
@@ -232,58 +234,58 @@ class _FormateurDashboardState extends State<FormateurDashboard> {
       mainAxisSpacing: 16,
       childAspectRatio: 1.2,
       children: [
+        // 📅 NOUVELLE FONCTIONNALITÉ : Emploi du Temps
         _buildFeatureCard(
-          title: 'Mes Cours',
-          subtitle: 'Gérer mes cours',
-          icon: Icons.book,
+          title: 'Emploi du Temps',
+          subtitle: 'Gérer les créneaux',
+          icon: Icons.schedule_rounded,
           color: Colors.green,
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Gestion des cours - À venir')),
-            );
+            Navigator.pushNamed(context, '/emploi-du-temps');
           },
         ),
+
+        // 🤖 NOUVELLE FONCTIONNALITÉ : Génération Auto
         _buildFeatureCard(
-          title: 'Planning',
-          subtitle: 'Mon emploi du temps',
-          icon: Icons.calendar_today,
+          title: 'Génération Auto',
+          subtitle: 'IA pour emploi du temps',
+          icon: Icons.auto_awesome_rounded,
           color: Colors.blue,
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Planning - À venir')),
-            );
+            Navigator.pushNamed(context, '/generation-auto');
           },
         ),
+
+        // 📊 NOUVELLE FONCTIONNALITÉ : Analyse
         _buildFeatureCard(
-          title: 'Étudiants',
-          subtitle: 'Liste de mes étudiants',
-          icon: Icons.people,
+          title: 'Analyse',
+          subtitle: 'Rapports & statistiques',
+          icon: Icons.analytics_rounded,
           color: Colors.orange,
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Liste étudiants - À venir')),
-            );
+            Navigator.pushNamed(context, '/analyse-emploi');
           },
         ),
+
+        // ➕ NOUVELLE FONCTIONNALITÉ : Créer Créneau
         _buildFeatureCard(
-          title: 'Notes',
-          subtitle: 'Saisir les notes',
-          icon: Icons.assignment,
+          title: 'Créer Créneau',
+          subtitle: 'Ajouter manuellement',
+          icon: Icons.add_circle_rounded,
           color: Colors.purple,
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Saisie notes - À venir')),
-            );
+            Navigator.pushNamed(context, '/create-creneau');
           },
         ),
+
         _buildFeatureCard(
-          title: 'Ressources',
-          subtitle: 'Mes documents',
-          icon: Icons.folder,
+          title: 'Mes Étudiants',
+          subtitle: 'Liste de mes étudiants',
+          icon: Icons.people,
           color: Colors.teal,
           onTap: () {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Ressources - À venir')),
+              const SnackBar(content: Text('Liste étudiants - À venir')),
             );
           },
         ),
