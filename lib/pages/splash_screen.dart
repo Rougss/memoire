@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import '../authentification/login_screen.dart';
-
+import '../services/auth_service.dart';
+import '../administrateur/admin_dashboard.dart';
+import '../administrateur/formateur_dashboard.dart';
+import '../administrateur/chef_depart_dashboard.dart';
+import '../administrateur/eleve_dashboard.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -18,15 +22,19 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _progressController;
   late AnimationController _particlesController;
   late AnimationController _bounceController;
+  late AnimationController _pulseController;
 
   late Animation<double> _logoScale;
+  late Animation<double> _logoRotation;
   late Animation<double> _textOpacity;
   late Animation<double> _progressWidth;
   late Animation<double> _particleAnimation;
   late Animation<double> _bounceAnimation;
+  late Animation<double> _pulseAnimation;
 
   double progressValue = 0.0;
   Timer? _progressTimer;
+  String loadingText = 'Initialisation...';
 
   @override
   void initState() {
@@ -36,13 +44,16 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _initAnimations() {
-    // Logo animation
+    // Logo animations
     _logoController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
-    _logoScale = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _logoScale = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _logoController, curve: Curves.elasticOut),
+    );
+    _logoRotation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _logoController, curve: Curves.easeInOut),
     );
 
     // Text animation
@@ -80,6 +91,15 @@ class _SplashScreenState extends State<SplashScreen>
     _bounceAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       _bounceController,
     );
+
+    // Pulse animation for logo
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
   }
 
   void _startAnimationSequence() {
@@ -97,9 +117,84 @@ class _SplashScreenState extends State<SplashScreen>
     Timer(const Duration(milliseconds: 1200), () {
       if (mounted) {
         _progressController.forward();
-        _startProgressTimer();
+        _startProgressAndAuth();
       }
     });
+  }
+
+  void _startProgressAndAuth() {
+    _checkAuthenticationStatus();
+    _startProgressTimer();
+  }
+
+  Future<void> _checkAuthenticationStatus() async {
+    try {
+      print('🔄 Vérification du statut d\'authentification...');
+
+      if (mounted) {
+        setState(() {
+          loadingText = 'Vérification de la session...';
+        });
+      }
+
+      final sessionData = await AuthService.checkExistingSession();
+
+      if (sessionData != null && sessionData['isLoggedIn'] == true) {
+        final userRole = sessionData['role'];
+        print('✅ Session trouvée pour rôle: $userRole');
+
+        if (mounted) {
+          setState(() {
+            loadingText = 'Connexion automatique...';
+          });
+        }
+
+        _waitForProgressAndNavigate(() => _navigateToDashboard(userRole));
+      } else {
+        print('❌ Pas de session, redirection vers login');
+
+        if (mounted) {
+          setState(() {
+            loadingText = 'Chargement du login...';
+          });
+        }
+
+        _waitForProgressAndNavigate(() => _navigateToLogin());
+      }
+    } catch (e) {
+      print('❌ Erreur lors de la vérification auth: $e');
+
+      if (mounted) {
+        setState(() {
+          loadingText = 'Erreur de connexion...';
+        });
+      }
+
+      _waitForProgressAndNavigate(() => _navigateToLogin());
+    }
+  }
+
+  void _waitForProgressAndNavigate(VoidCallback navigationCallback) {
+    if (progressValue >= 80) {
+      Timer(const Duration(milliseconds: 800), () {
+        if (mounted) {
+          navigationCallback();
+        }
+      });
+    } else {
+      Timer.periodic(const Duration(milliseconds: 100), (timer) {
+        if (progressValue >= 95 || !mounted) {
+          timer.cancel();
+          if (mounted) {
+            Timer(const Duration(milliseconds: 500), () {
+              if (mounted) {
+                navigationCallback();
+              }
+            });
+          }
+        }
+      });
+    }
   }
 
   void _startProgressTimer() {
@@ -109,10 +204,6 @@ class _SplashScreenState extends State<SplashScreen>
           progressValue += 2;
           if (progressValue >= 100) {
             timer.cancel();
-            // Navigate to HomeScreen after progress completes
-            Timer(const Duration(milliseconds: 500), () {
-              _navigateToLogin();
-            });
           }
         });
       } else {
@@ -121,10 +212,50 @@ class _SplashScreenState extends State<SplashScreen>
     });
   }
 
+  void _navigateToDashboard(String role) {
+    Widget targetScreen;
+
+    switch (role.toLowerCase()) {
+      case 'administrateur':
+      case 'admin':
+        targetScreen = AdminDashboard();
+        break;
+      case 'formateur':
+        targetScreen = FormateurDashboard();
+        break;
+      case 'directeur des etudes':
+        targetScreen = ChefDepartDashboard();
+        break;
+      case 'elève':
+        targetScreen = EleveDashboard();
+        break;
+      default:
+        print('⚠️ Rôle non reconnu: $role, redirection vers login');
+        _navigateToLogin();
+        return;
+    }
+
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 500),
+      ),
+    );
+  }
+
   void _navigateToLogin() {
     if (mounted) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) =>  LoginScreen()), // Redirection vers LoginScreen
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => LoginScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
       );
     }
   }
@@ -136,6 +267,7 @@ class _SplashScreenState extends State<SplashScreen>
     _progressController.dispose();
     _particlesController.dispose();
     _bounceController.dispose();
+    _pulseController.dispose();
     _progressTimer?.cancel();
     super.dispose();
   }
@@ -149,9 +281,9 @@ class _SplashScreenState extends State<SplashScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF1e3a8a), // blue-900
-              Color(0xFF1e40af), // blue-800
-              Color(0xFF7c3aed), // purple-600
+              Color(0xFF4A6FA5), // Bleu CFPT principal
+              Color(0xFF3D5A91), // Bleu CFPT foncé
+              Color(0xFF2A4073), // Bleu CFPT très foncé
             ],
           ),
         ),
@@ -165,13 +297,16 @@ class _SplashScreenState extends State<SplashScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo with animation
+                  // Logo avec animations
                   AnimatedBuilder(
-                    animation: _logoScale,
+                    animation: Listenable.merge([_logoScale, _pulseAnimation]),
                     builder: (context, child) {
                       return Transform.scale(
-                        scale: _logoScale.value,
-                        child: _buildCFPTLogo(),
+                        scale: _logoScale.value * (1.0 + _pulseAnimation.value * 0.05),
+                        child: Transform.rotate(
+                          angle: _logoRotation.value * 0.1,
+                          child: _buildCFPTLogo(),
+                        ),
                       );
                     },
                   ),
@@ -199,7 +334,7 @@ class _SplashScreenState extends State<SplashScreen>
                               'Centre de Formation Professionnelle et Technique',
                               style: TextStyle(
                                 fontSize: 18,
-                                color: Color(0xFFbfdbfe), // blue-200
+                                color: Color(0xFFE3F2FD), // Bleu clair
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -208,7 +343,7 @@ class _SplashScreenState extends State<SplashScreen>
                               'Gestion Intelligente des Emplois du Temps',
                               style: TextStyle(
                                 fontSize: 16,
-                                color: Color(0xFFdbeafe), // blue-100
+                                color: Color(0xFFBBDEFB), // Bleu très clair
                                 fontWeight: FontWeight.w300,
                               ),
                               textAlign: TextAlign.center,
@@ -241,7 +376,7 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Text(
                   'Version 1.0.0 | Développé par ITEA',
                   style: TextStyle(
-                    color: const Color(0xFF93c5fd).withOpacity(0.7), // blue-300
+                    color: const Color(0xFFBBDEFB).withOpacity(0.7),
                     fontSize: 14,
                   ),
                 ),
@@ -284,19 +419,11 @@ class _SplashScreenState extends State<SplashScreen>
 
   Widget _buildCFPTLogo() {
     return Container(
-      width: 128,
-      height: 128,
+      width: 140,
+      height: 140,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF2563eb), // blue-600
-            Color(0xFF1d4ed8), // blue-700
-            Color(0xFF1e40af), // blue-800
-          ],
-        ),
+        color: Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.3),
@@ -306,23 +433,40 @@ class _SplashScreenState extends State<SplashScreen>
         ],
       ),
       child: Container(
-        margin: const EdgeInsets.all(4),
+        margin: const EdgeInsets.all(8),
         decoration: const BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.white,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFeff6ff), // blue-50
-              Colors.white,
-            ],
-          ),
         ),
         child: Center(
-          child: CustomPaint(
-            size: const Size(80, 80),
-            painter: CFPTLogoPainter(),
+          child: ClipOval(
+            child: Image.asset(
+              'images/img2.jpg',
+              width: 120,
+              height: 120,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                // Fallback en cas d'erreur de chargement de l'image
+                return Container(
+                  width: 120,
+                  height: 120,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF4A6FA5),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'CFPT',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -346,7 +490,7 @@ class _SplashScreenState extends State<SplashScreen>
                 value: progressValue / 100,
                 backgroundColor: Colors.transparent,
                 valueColor: const AlwaysStoppedAnimation<Color>(
-                  Color(0xFF60a5fa), // blue-400
+                  Color(0xFFE53E3E), // Rouge CFPT pour la barre de progression
                 ),
               ),
             ),
@@ -355,17 +499,17 @@ class _SplashScreenState extends State<SplashScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Initialisation...',
-                style: TextStyle(
-                  color: Color(0xFFbfdbfe), // blue-200
+              Text(
+                loadingText,
+                style: const TextStyle(
+                  color: Color(0xFFE3F2FD),
                   fontSize: 14,
                 ),
               ),
               Text(
                 '${progressValue.round()}%',
                 style: const TextStyle(
-                  color: Color(0xFFbfdbfe), // blue-200
+                  color: Color(0xFFE3F2FD),
                   fontSize: 14,
                 ),
               ),
@@ -397,7 +541,7 @@ class _SplashScreenState extends State<SplashScreen>
                   width: 12,
                   height: 12,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF93c5fd), // blue-300
+                    color: Color(0xFFE53E3E), // Rouge CFPT
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -408,61 +552,4 @@ class _SplashScreenState extends State<SplashScreen>
       },
     );
   }
-}
-
-class CFPTLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF1d4ed8) // blue-700
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-
-    // Letter C
-    final cPath = Path();
-    cPath.moveTo(centerX - 30, centerY - 25);
-    cPath.quadraticBezierTo(centerX - 30, centerY - 35, centerX - 20, centerY - 35);
-    cPath.lineTo(centerX - 10, centerY - 35);
-    cPath.quadraticBezierTo(centerX, centerY - 35, centerX, centerY - 25);
-    cPath.lineTo(centerX, centerY - 15);
-    cPath.quadraticBezierTo(centerX, centerY - 5, centerX - 10, centerY - 5);
-    cPath.lineTo(centerX - 20, centerY - 5);
-    canvas.drawPath(cPath, paint);
-
-    // Letter F
-    final fPath = Path();
-    fPath.moveTo(centerX + 10, centerY - 35);
-    fPath.lineTo(centerX + 10, centerY - 5);
-    fPath.moveTo(centerX + 10, centerY - 35);
-    fPath.lineTo(centerX + 30, centerY - 35);
-    fPath.moveTo(centerX + 10, centerY - 20);
-    fPath.lineTo(centerX + 25, centerY - 20);
-    canvas.drawPath(fPath, paint);
-
-    // Letter P
-    final pPath = Path();
-    pPath.moveTo(centerX - 30, centerY + 5);
-    pPath.lineTo(centerX - 30, centerY + 35);
-    pPath.moveTo(centerX - 30, centerY + 5);
-    pPath.lineTo(centerX - 20, centerY + 5);
-    pPath.quadraticBezierTo(centerX - 10, centerY + 5, centerX - 10, centerY + 15);
-    pPath.quadraticBezierTo(centerX - 10, centerY + 25, centerX - 20, centerY + 25);
-    pPath.lineTo(centerX - 30, centerY + 25);
-    canvas.drawPath(pPath, paint);
-
-    // Letter T
-    final tPath = Path();
-    tPath.moveTo(centerX, centerY + 5);
-    tPath.lineTo(centerX + 30, centerY + 5);
-    tPath.moveTo(centerX + 15, centerY + 5);
-    tPath.lineTo(centerX + 15, centerY + 35);
-    canvas.drawPath(tPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

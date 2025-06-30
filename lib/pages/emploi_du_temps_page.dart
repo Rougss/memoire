@@ -1,10 +1,10 @@
-// lib/screens/emploi_du_temps_dashboard.dart - VERSION AMÉLIORÉE
-
 import 'package:flutter/material.dart';
 import 'package:memoire/screens/analyse_emploi_du_temps_screen.dart';
 import '../screens/create_creneau_screen.dart';
 import '../screens/generation_auto_screen.dart';
+import '../screens/quota_dashboard_screen.dart';
 import '../services/emploi_du_temps_service.dart';
+import 'emploi_grille_view.dart';
 
 class EmploiDuTempsPage extends StatefulWidget {
   const EmploiDuTempsPage({Key? key}) : super(key: key);
@@ -153,13 +153,24 @@ class _EmploiDuTempsPageState extends State<EmploiDuTempsPage> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
-          'Gestion Emploi du Temps - CFPT',
+          'Gestion Emploi du Temps',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         backgroundColor: const Color(0xFF1E293B),
         foregroundColor: Colors.white,
         elevation: 0,
+
         actions: [
+          IconButton(
+            icon: const Icon(Icons.view_week_rounded),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const EmploiGrilleView()),
+              );
+            },
+            tooltip: 'Vue grille',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: _loadEmplois,
@@ -188,18 +199,7 @@ class _EmploiDuTempsPageState extends State<EmploiDuTempsPage> {
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FloatingActionButton(
-            heroTag: "auto",
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const GenerationAutoScreen()),
-              ).then((_) => _loadEmplois());
-            },
-            backgroundColor: const Color(0xFF10B981),
-            child: const Icon(Icons.auto_awesome, color: Colors.white),
-            tooltip: 'Génération automatique',
-          ),
+
           const SizedBox(height: 10),
           FloatingActionButton(
             heroTag: "manual",
@@ -225,18 +225,19 @@ class _EmploiDuTempsPageState extends State<EmploiDuTempsPage> {
         children: [
           Expanded(
             child: _buildActionCard(
-              title: 'Analyser',
-              subtitle: 'Voir les statistiques',
-              icon: Icons.analytics_rounded,
-              color: Colors.blue,
+              title: 'Quotas',
+              subtitle: 'Suivi des heures',
+              icon: Icons.hourglass_bottom_rounded,
+              color: Colors.purple,
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const AnalyseEmploiDuTempsScreen()),
+                  MaterialPageRoute(builder: (context) => const QuotasDashboardScreen()),
                 );
               },
             ),
           ),
+
           const SizedBox(width: 12),
           Expanded(
             child: _buildActionCard(
@@ -459,11 +460,9 @@ class _EmploiDuTempsPageState extends State<EmploiDuTempsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // En-tête avec département et classe
-          // Remplacez votre widget qui cause l'overflow par ceci :
-
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(16), // Réduire le padding
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: _getColorForDepartment(nomDepartement),
               borderRadius: const BorderRadius.only(
@@ -474,57 +473,52 @@ class _EmploiDuTempsPageState extends State<EmploiDuTempsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Titre du département
-                Text(
-                  nomDepartement.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B),
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-
-                const SizedBox(height: 8),
-
-                // Row séparée pour éviter l'overflow
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      flex: 2,
+                      flex: 3,
                       child: Text(
-                        'Année Scolaire: 2024/2025',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade700,
-                          fontWeight: FontWeight.w500,
+                        nomDepartement.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-
                     const SizedBox(width: 8),
-
-                    // Badge classe
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.yellow.shade600,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        intituleAnnee,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
+                    Flexible(
+                      flex: 2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.yellow.shade600,
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                        overflow: TextOverflow.ellipsis,
+                        child: Text(
+                          intituleAnnee,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Année Scolaire: 2024/2025',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
@@ -626,23 +620,30 @@ class _EmploiDuTempsPageState extends State<EmploiDuTempsPage> {
     final nomCompetence = competence['nom']?.toString() ?? 'Compétence non définie';
     final codeCompetence = competence['code']?.toString() ?? 'N/A';
     final formateur = competence['formateur'] ?? {};
-    final metier = competence['metier'] ?? {};
     final salle = competence['salle'] ?? {};
 
     final nomFormateur = formateur['nom']?.toString() ?? '';
     final prenomFormateur = formateur['prenom']?.toString() ?? '';
     final formateurComplet = '$prenomFormateur $nomFormateur'.trim();
 
-    final intituleMetier = metier['intitule']?.toString() ?? '';
     final intituleSalle = salle['intitule']?.toString() ?? '';
+    final batiment = salle['batiment'] ?? {};
+    final intituleBatiment = batiment['intitule']?.toString() ?? '';
+
+    // 🔥 CORRECTION : Récupérer le département depuis la compétence
+    final metier = competence['metier'] ?? {};
+    final departementCompetence = metier['departement'] ?? {};
+    final nomDepartementCompetence = departementCompetence['nom_departement']?.toString() ?? '';
+    final intituleMetier = metier['intitule']?.toString() ?? '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        // 🔥 CORRECTION : Utiliser le département de la compétence pour la couleur
+        color: _getColorForDepartment(nomDepartementCompetence).withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: _getColorForDepartment(nomDepartementCompetence).withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -681,7 +682,10 @@ class _EmploiDuTempsPageState extends State<EmploiDuTempsPage> {
 
           const SizedBox(height: 8),
 
-          // Informations sur 3 lignes pour éviter l'overflow
+          // 🔥 NOUVEAU : Afficher le département de la compétence
+          if (nomDepartementCompetence.isNotEmpty)
+            _buildInfoRow(Icons.business, 'Département', nomDepartementCompetence, Colors.indigo.shade600),
+
           if (formateurComplet.isNotEmpty)
             _buildInfoRow(Icons.person, 'Formateur', formateurComplet, Colors.purple.shade600),
 
@@ -689,10 +693,14 @@ class _EmploiDuTempsPageState extends State<EmploiDuTempsPage> {
             _buildInfoRow(Icons.work, 'Métier', intituleMetier, Colors.orange.shade600),
 
           if (intituleSalle.isNotEmpty)
-            _buildInfoRow(Icons.room, 'Salle', intituleSalle, Colors.red.shade600),
+            _buildInfoRow(Icons.room, 'Salle',
+                intituleBatiment.isNotEmpty
+                    ? '$intituleSalle ($intituleBatiment)'
+                    : intituleSalle,
+                Colors.red.shade600),
 
           // Si aucune info supplémentaire
-          if (formateurComplet.isEmpty && intituleMetier.isEmpty && intituleSalle.isEmpty)
+          if (formateurComplet.isEmpty && intituleMetier.isEmpty && intituleSalle.isEmpty && nomDepartementCompetence.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(

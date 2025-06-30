@@ -1,47 +1,46 @@
 import 'package:flutter/material.dart';
-import 'package:memoire/screens/create_departement_screen.dart';
-import '../services/departement_service.dart';
+import '../services/type_formation_screen.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 
-class DepartementManageScreen extends StatefulWidget {
-  const DepartementManageScreen({super.key});
+import 'create_type_formation_screen.dart';
+
+class TypeFormationManageScreen extends StatefulWidget {
+  const TypeFormationManageScreen({super.key});
 
   @override
-  State<DepartementManageScreen> createState() => _DepartementManageScreenState();
+  State<TypeFormationManageScreen> createState() => _TypeFormationManageScreenState();
 }
 
-class _DepartementManageScreenState extends State<DepartementManageScreen> {
-  List<Map<String, dynamic>> departements = [];
+class _TypeFormationManageScreenState extends State<TypeFormationManageScreen> {
+  List<Map<String, dynamic>> typeFormations = [];
   bool isLoading = true;
   String searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _loadDepartements();
+    _loadTypeFormations();
   }
 
-  Future<void> _loadDepartements() async {
+  Future<void> _loadTypeFormations() async {
     setState(() {
       isLoading = true;
     });
 
     try {
-      // Utilisation du service pour récupérer tous les départements
-      final data = await DepartementService.getAllDepartements();
+      final data = await TypeFormationService.getAllTypeFormations();
       setState(() {
-        departements = data;
+        typeFormations = data;
         isLoading = false;
       });
 
-      print('✅ TOTAL départements chargés: ${departements.length}');
+      print('✅ TOTAL types de formation chargés: ${typeFormations.length}');
 
-      // Debug pour voir exactement ce qui est retourné
-      for (int i = 0; i < departements.length && i < 3; i++) {
-        final dept = departements[i];
-        print('🏢 Département $i: ${dept['nom_departement']} - ID: ${dept['id']}');
+      // Debug pour voir les données
+      for (int i = 0; i < typeFormations.length && i < 3; i++) {
+        final type = typeFormations[i];
+        print('📚 Type de formation $i: ${type['intitule']} - ID: ${type['id']}');
       }
-
     } catch (e) {
       setState(() {
         isLoading = false;
@@ -58,23 +57,14 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
     }
   }
 
-  List<Map<String, dynamic>> get filteredDepartements {
-    return departements.where((dept) {
-      // Filtrage par recherche (nom/description)
-      final matchesSearch = searchQuery.isEmpty ||
-          _matchesSearchQuery(dept, searchQuery);
+  List<Map<String, dynamic>> get filteredTypeFormations {
+    return typeFormations.where((type) {
+      final queryLower = searchQuery.toLowerCase();
+      final intitule = (type['intitule']?.toString() ?? '').toLowerCase();
 
-      return matchesSearch;
+      return intitule.contains(queryLower);
     }).toList();
   }
-
-  bool _matchesSearchQuery(Map<String, dynamic> dept, String query) {
-    final queryLower = query.toLowerCase();
-    final nom = (dept['nom_departement']?.toString() ?? '').toLowerCase();
-
-    return nom.contains(queryLower);
-  }
-
 
   @override
   Widget build(BuildContext context) {
@@ -82,24 +72,24 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
-          'Gestion des départements',
+          'Gestion des types de formation',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
-        backgroundColor: Colors.purple.shade300,
+        backgroundColor: const Color(0xFF8B5CF6),
         foregroundColor: Colors.white,
         elevation: 0,
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: (){
+        onPressed: () {
           Navigator.push(
-              context,
-           MaterialPageRoute(builder: (context)=>CreateDepartementScreen())
-          );
+            context,
+            MaterialPageRoute(builder: (context) => const CreateTypeFormationScreen()),
+          ).then((_) => _loadTypeFormations());
         },
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Nouveau département'),
-        backgroundColor: Colors.purple.shade300,
+        label: const Text('Nouveau type'),
+        backgroundColor: const Color(0xFF8B5CF6),
         foregroundColor: Colors.white,
         elevation: 4,
       ),
@@ -108,20 +98,20 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
           // Header avec recherche
           _buildSearchHeader(),
 
-          // Liste des départements
+          // Liste des types de formation
           Expanded(
             child: isLoading
-                ? const  Center(
+                ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   SpinKitThreeInOut(
-                    color: Colors.purple,
+                    color: Color(0xFF8B5CF6),
                     size: 30.0,
                   ),
                   SizedBox(height: 16),
                   Text(
-                    'Chargement des departements...',
+                    'Chargement des types de formation...',
                     style: TextStyle(
                       color: Color(0xFF64748B),
                       fontSize: 16,
@@ -130,9 +120,9 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
                 ],
               ),
             )
-                : filteredDepartements.isEmpty
+                : filteredTypeFormations.isEmpty
                 ? _buildEmptyState()
-                : _buildDepartementsList(),
+                : _buildTypeFormationsList(),
           ),
         ],
       ),
@@ -160,7 +150,7 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
         ),
         child: TextField(
           decoration: const InputDecoration(
-            hintText: 'Rechercher un département...',
+            hintText: 'Rechercher un type de formation...',
             hintStyle: TextStyle(color: Color(0xFF64748B)),
             prefixIcon: Icon(Icons.search_rounded, color: Color(0xFF64748B)),
             border: InputBorder.none,
@@ -176,7 +166,7 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
     );
   }
 
-  Widget _buildDepartementsList() {
+  Widget _buildTypeFormationsList() {
     return Column(
       children: [
         // Compteur
@@ -184,7 +174,7 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           child: Text(
-            '${filteredDepartements.length} département(s) trouvé(s) sur ${departements.length} au total',
+            '${filteredTypeFormations.length} type(s) de formation trouvé(s) sur ${typeFormations.length} au total',
             style: const TextStyle(
               fontSize: 14,
               color: Color(0xFF64748B),
@@ -196,13 +186,13 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
         // Liste
         Expanded(
           child: RefreshIndicator(
-            onRefresh: _loadDepartements,
-            color: const Color(0xFF3B82F6),
+            onRefresh: _loadTypeFormations,
+            color: const Color(0xFF8B5CF6),
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: filteredDepartements.length,
+              itemCount: filteredTypeFormations.length,
               itemBuilder: (context, index) {
-                return _buildDepartementCard(filteredDepartements[index], index);
+                return _buildTypeFormationCard(filteredTypeFormations[index]);
               },
             ),
           ),
@@ -211,10 +201,8 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
     );
   }
 
-  Widget _buildDepartementCard(Map<String, dynamic> dept, int index) {
-    final String nom = dept['nom_departement']?.toString() ?? 'N/A';
-    final String description = ' ${dept['batiment']?['intitule'] ?? 'N/A'}';
-   // final Color deptColor = _getDepartementColor(index);
+  Widget _buildTypeFormationCard(Map<String, dynamic> typeFormation) {
+    final String intitule = typeFormation['intitule']?.toString() ?? 'N/A';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -237,14 +225,31 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
+            // Icône de type de formation
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFF8B5CF6).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.school_rounded,
+                color: Color(0xFF8B5CF6),
+                size: 24,
+              ),
+            ),
+
             const SizedBox(width: 16),
+
+            // Informations type de formation
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Nom du département
+                  // Intitulé
                   Text(
-                    nom,
+                    intitule,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -253,16 +258,16 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
                   ),
 
                   const SizedBox(height: 4),
-                  Text(
-                    '$description',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF64748B),
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
 
+                  // Métiers associés (si disponible)
+                  if (typeFormation['metiers'] != null && typeFormation['metiers'].isNotEmpty)
+                    Text(
+                      '${typeFormation['metiers'].length} métier(s) associé(s)',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -309,7 +314,7 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
                   ),
                 ),
               ],
-              onSelected: (value) => _handleDepartementAction(value, dept),
+              onSelected: (value) => _handleTypeFormationAction(value, typeFormation),
             ),
           ],
         ),
@@ -317,7 +322,6 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
     );
   }
 
-  // État vide
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -331,14 +335,14 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
               borderRadius: BorderRadius.circular(60),
             ),
             child: const Icon(
-              Icons.business_rounded,
+              Icons.school_outlined,
               size: 60,
               color: Color(0xFF64748B),
             ),
           ),
           const SizedBox(height: 24),
           const Text(
-            'Aucun département trouvé',
+            'Aucun type de formation trouvé',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -349,7 +353,7 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
           Text(
             searchQuery.isNotEmpty
                 ? 'Essayez de modifier votre recherche'
-                : 'Commencez par ajouter des départements',
+                : 'Commencez par ajouter des types de formation',
             style: const TextStyle(
               fontSize: 14,
               color: Color(0xFF64748B),
@@ -371,37 +375,57 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
     );
   }
 
-  // Gestion des actions sur les départements
-  void _handleDepartementAction(String action, Map<String, dynamic> dept) {
+  void _handleTypeFormationAction(String action, Map<String, dynamic> typeFormation) {
     switch (action) {
       case 'view':
-        _showDepartementDetails(dept);
+        _showTypeFormationDetails(typeFormation);
         break;
       case 'edit':
-        _showEditDepartementDialog(dept);
+        _showEditTypeFormationDialog(typeFormation);
         break;
       case 'delete':
-        _confirmDeleteDepartement(dept);
+        _confirmDeleteTypeFormation(typeFormation);
         break;
     }
   }
 
-  void _showDepartementDetails(Map<String, dynamic> dept) {
+  void _showTypeFormationDetails(Map<String, dynamic> typeFormation) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Détails du département'),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF8B5CF6).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.school_rounded,
+                color: Color(0xFF8B5CF6),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                typeFormation['intitule']?.toString() ?? 'Type de formation',
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildDetailRow('Nom', dept['nom_departement']?.toString() ?? 'N/A'),
-            _buildDetailRow('ID', dept['id']?.toString() ?? 'N/A'),
-            _buildDetailRow('Bâtiment', dept['batiment']?['intitule']?.toString() ?? 'N/A'),
-            _buildDetailRow('Nombre de métiers', dept['metiers']?.length?.toString() ?? '0'),
-            if (dept['created_at'] != null)
-              _buildDetailRow('Créé le', dept['created_at']?.toString() ?? 'N/A'),
+            _buildDetailRow('ID', typeFormation['id']?.toString() ?? 'N/A'),
+            _buildDetailRow('Intitulé', typeFormation['intitule']?.toString() ?? 'N/A'),
+            _buildDetailRow('Nombre de métiers', (typeFormation['metiers']?.length ?? 0).toString()),
+            if (typeFormation['created_at'] != null)
+              _buildDetailRow('Créé le', typeFormation['created_at']?.toString() ?? 'N/A'),
           ],
         ),
         actions: [
@@ -421,7 +445,7 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 100,
+            width: 120,
             child: Text(
               '$label:',
               style: const TextStyle(fontWeight: FontWeight.w600),
@@ -435,35 +459,42 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
     );
   }
 
-  void _showAddDepartementDialog() {
-    final nomController = TextEditingController();
-    final descriptionController = TextEditingController();
+  void _showEditTypeFormationDialog(Map<String, dynamic> typeFormation) {
+    final intituleController = TextEditingController(text: typeFormation['intitule']?.toString() ?? '');
+    final formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Nouveau département'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+        title: const Row(
           children: [
-            TextField(
-              controller: nomController,
-              decoration: const InputDecoration(
-                labelText: 'Nom du département',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
+            Icon(Icons.edit_rounded, color: Color(0xFF3B82F6)),
+            SizedBox(width: 12),
+            Text('Modifier le type de formation'),
           ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: intituleController,
+                decoration: const InputDecoration(
+                  labelText: 'Intitulé *',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.title_rounded),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'L\'intitulé est obligatoire';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -471,65 +502,12 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            onPressed: () {
-              if (nomController.text.trim().isNotEmpty) {
-                Navigator.pop(context);
-                _addDepartement(nomController.text.trim(), descriptionController.text.trim());
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3B82F6),
-              foregroundColor: Colors.white,
+            onPressed: () => _updateTypeFormation(
+              context,
+              typeFormation['id'],
+              intituleController.text,
+              formKey,
             ),
-            child: const Text('Ajouter'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditDepartementDialog(Map<String, dynamic> dept) {
-    final nomController = TextEditingController(text: dept['nom_departement']?.toString() ?? '');
-    final descriptionController = TextEditingController(); // Pas de description dans l'API
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Modifier le département'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nomController,
-              decoration: const InputDecoration(
-                labelText: 'Nom du département',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description (optionnel)',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (nomController.text.trim().isNotEmpty) {
-                Navigator.pop(context);
-                _editDepartement(dept['id'], nomController.text.trim(), descriptionController.text.trim());
-              }
-            },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF3B82F6),
               foregroundColor: Colors.white,
@@ -541,71 +519,23 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
     );
   }
 
-  void _confirmDeleteDepartement(Map<String, dynamic> dept) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Confirmer la suppression'),
-        content: Text(
-          'Êtes-vous sûr de vouloir supprimer le département "${dept['nom_departement']}" ?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteDepartement(dept);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
-    );
-  }
+  void _updateTypeFormation(BuildContext dialogContext, int id, String intitule, GlobalKey<FormState> formKey) async {
+    if (!formKey.currentState!.validate()) return;
 
-  void _addDepartement(String nom, String description) async {
     try {
-      await DepartementService.addDepartement(nom, description);
-      _loadDepartements(); // Recharger la liste
+      await TypeFormationService.updateTypeFormation(
+        id: id,
+        intitule: intitule.trim(),
+      );
+
+      Navigator.pop(dialogContext);
+      await _loadTypeFormations();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Département "$nom" ajouté avec succès'),
-            backgroundColor: const Color(0xFF10B981),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur lors de l\'ajout: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _editDepartement(int id, String nom, String description) async {
-    try {
-      await DepartementService.updateDepartement(id, nom, description);
-      _loadDepartements(); // Recharger la liste
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Département "$nom" modifié avec succès'),
-            backgroundColor: const Color(0xFF10B981),
+          const SnackBar(
+            content: Text('Type de formation modifié avec succès'),
+            backgroundColor: Color(0xFF3B82F6),
           ),
         );
       }
@@ -621,23 +551,102 @@ class _DepartementManageScreenState extends State<DepartementManageScreen> {
     }
   }
 
-  void _deleteDepartement(Map<String, dynamic> dept) async {
-    try {
-      await DepartementService.deleteDepartement(dept['id']);
+  void _confirmDeleteTypeFormation(Map<String, dynamic> typeFormation) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_rounded, color: Color(0xFFEF4444)),
+            SizedBox(width: 12),
+            Text('Confirmer la suppression'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Êtes-vous sûr de vouloir supprimer ce type de formation ?',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    typeFormation['intitule']?.toString() ?? 'N/A',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF991B1B),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${typeFormation['metiers']?.length ?? 0} métier(s) associé(s)',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF7F1D1D),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '⚠️ Cette action est irréversible.',
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFFEF4444),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => _deleteTypeFormation(context, typeFormation['id']),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+  }
 
-      setState(() {
-        departements.removeWhere((d) => d['id'] == dept['id']);
-      });
+  void _deleteTypeFormation(BuildContext dialogContext, int id) async {
+    try {
+      await TypeFormationService.deleteTypeFormation(id);
+
+      Navigator.pop(dialogContext);
+      await _loadTypeFormations();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Département "${dept['nom']}" supprimé avec succès'),
-            backgroundColor: const Color(0xFF10B981),
+          const SnackBar(
+            content: Text('Type de formation supprimé avec succès'),
+            backgroundColor: Color(0xFF10B981),
           ),
         );
       }
     } catch (e) {
+      Navigator.pop(dialogContext);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

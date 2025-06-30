@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:memoire/screens/create_specialite_screen.dart';
 import '../services/salle_service.dart';
 import 'create_salle_screen.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 
 
 class SalleManageScreen extends StatefulWidget {
@@ -80,7 +81,8 @@ class _SalleManageScreenState extends State<SalleManageScreen> {
           'Gestion des Salles',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
-        backgroundColor: const Color(0xFF1E293B),
+        centerTitle: true,
+        backgroundColor: Colors.red.shade300,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -96,7 +98,7 @@ class _SalleManageScreenState extends State<SalleManageScreen> {
         },
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nouvelle Salle'),
-        backgroundColor: const Color(0xFF3B82F6),
+        backgroundColor: Colors.red.shade500,
         foregroundColor: Colors.white,
         elevation: 4,
       ),
@@ -109,8 +111,22 @@ class _SalleManageScreenState extends State<SalleManageScreen> {
           Expanded(
             child: isLoading
                 ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SpinKitThreeInOut(
+                    color: Colors.red,
+                    size: 30.0,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Chargement des salles...',
+                    style: TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
               ),
             )
                 : filteredSalles.isEmpty
@@ -197,7 +213,7 @@ class _SalleManageScreenState extends State<SalleManageScreen> {
   Widget _buildSalleCard(Map<String, dynamic> salle) {
     final String intitule = salle['intitule']?.toString() ?? 'N/A';
     final int nombrePlace = salle['nombre_de_place'] ?? 0;
-    final String batimentNom = salle['batiments']?['intitule']?.toString() ?? 'Bâtiment non défini';
+    final String batimentNom = salle['batiment']?['intitule']?.toString() ?? 'Bâtiment non défini';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -229,7 +245,7 @@ class _SalleManageScreenState extends State<SalleManageScreen> {
               ),
               child: const Icon(
                 Icons.meeting_room_rounded,
-                color: Color(0xFF3B82F6),
+                color: Color(0xFFEF4444),
                 size: 24,
               ),
             ),
@@ -428,12 +444,12 @@ class _SalleManageScreenState extends State<SalleManageScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF3B82F6).withOpacity(0.1),
+                color: const Color(0xFFEF4444).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
                 Icons.meeting_room_rounded,
-                color: Color(0xFF3B82F6),
+                color: Colors.red,
                 size: 20,
               ),
             ),
@@ -453,7 +469,7 @@ class _SalleManageScreenState extends State<SalleManageScreen> {
             _buildDetailRow('ID', salle['id']?.toString() ?? 'N/A'),
             _buildDetailRow('Intitulé', salle['intitule']?.toString() ?? 'N/A'),
             _buildDetailRow('Nombre de places', salle['nombre_de_place']?.toString() ?? 'N/A'),
-            _buildDetailRow('Bâtiment', salle['batiments']?['intitule']?.toString() ?? 'N/A'),            if (salle['batiment']?['adresse'] != null)
+            _buildDetailRow('Bâtiment', salle['batiment']?['intitule']?.toString() ?? 'N/A'),            if (salle['batiment']?['adresse'] != null)
               _buildDetailRow('Adresse', salle['batiment']['adresse'].toString()),
           ],
         ),

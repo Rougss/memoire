@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/specialite_service.dart';
 import 'create_specialite_screen.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 
 class SpecialiteManageScreen extends StatefulWidget {
   const SpecialiteManageScreen({super.key});
@@ -75,7 +76,8 @@ class _SpecialiteManageScreenState extends State<SpecialiteManageScreen> {
           'Gestion des spécialités',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
-        backgroundColor: const Color(0xFF1E293B),
+        centerTitle: true,
+        backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -88,7 +90,7 @@ class _SpecialiteManageScreenState extends State<SpecialiteManageScreen> {
         },
         icon: const Icon(Icons.add_rounded),
         label: const Text('Nouvelle Specialite'),
-        backgroundColor: const Color(0xFF3B82F6),
+        backgroundColor:Colors.green,
         foregroundColor: Colors.white,
         elevation: 4,
       ),
@@ -100,9 +102,23 @@ class _SpecialiteManageScreenState extends State<SpecialiteManageScreen> {
           // Liste des spécialités
           Expanded(
             child: isLoading
-                ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                ? const  Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SpinKitThreeInOut(
+                    color: Colors.greenAccent,
+                    size: 30.0,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Chargement des specialités...',
+                    style: TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
               ),
             )
                 : filteredSpecialites.isEmpty

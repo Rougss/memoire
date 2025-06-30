@@ -3,9 +3,10 @@ class ApiConfig {
   static const int timeoutDuration = 30; // en secondes
 
   // URLs spécifiques
-  static const String loginUrl = '$baseUrl/auth/login';
-  static const String logoutUrl = '$baseUrl/auth/logout';
-  static const String refreshTokenUrl = '$baseUrl/auth/refresh';
+  static const String loginUrl = '$baseUrl/login';        // ← Supprimé /auth
+  static const String logoutUrl = '$baseUrl/logout';      // ← Supprimé /auth
+  static const String refreshTokenUrl = '$baseUrl/refresh'; // ← Supprimé /auth
+  static const String meUrl = '$baseUrl/me';
 
   // Headers par défaut
   static Map<String, String> get defaultHeaders => {

@@ -13,7 +13,10 @@ class RoleSelectionScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Créer un utilisateur'),
+        title: const Text(
+            'Créer un utilisateur'
+        ),
+        centerTitle: true,
         backgroundColor: Colors.blue.shade300,
         foregroundColor: Colors.white,
         elevation: 0,

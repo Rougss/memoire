@@ -8,7 +8,7 @@ class UserService {
   // Récupérer le token avec la même clé que LoginScreen
   static Future<String?> _getAuthToken() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token');
+    final token = prefs.getString('auth_token');
     print('🔑 Token récupéré: ${token != null ? "✅ Présent" : "❌ Absent"}');
     if (token != null) {
       print('🔑 Token (premiers 20 caractères): ${token.substring(0, token.length > 20 ? 20 : token.length)}...');
@@ -410,4 +410,474 @@ class UserService {
       return false;
     }
   }
+  static Future<Map<String, dynamic>> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    try {
+      if (!await isAuthenticated()) {
+        return {
+          'success': false,
+          'message': 'Utilisateur non authentifié. Veuillez vous connecter.'
+        };
+      }
+
+      final headers = await _getHeaders();
+
+      print('🔐 Changement de mot de passe...');
+      print('📍 URL: $baseUrl/profile/change-password');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/profile/change-password'),
+        headers: headers,
+        body: jsonEncode({
+          'current_password': oldPassword,
+          'new_password': newPassword,
+          'new_password_confirmation': newPassword,
+        }),
+      );
+
+      print('📡 changePassword - Status: ${response.statusCode}');
+      print('📝 changePassword - Response: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Mot de passe modifié avec succès'
+        };
+      } else if (response.statusCode == 422) {
+        // Gestion des erreurs de validation
+        String errorMessage = 'Erreur de validation';
+
+        if (data['errors'] != null) {
+          final errors = data['errors'] as Map<String, dynamic>;
+          if (errors['current_password'] != null) {
+            errorMessage = errors['current_password'][0];
+          } else if (errors['new_password'] != null) {
+            errorMessage = errors['new_password'][0];
+          } else if (errors['new_password_confirmation'] != null) {
+            errorMessage = errors['new_password_confirmation'][0];
+          } else {
+            errorMessage = data['message'] ?? errorMessage;
+          }
+        } else if (data['message'] != null) {
+          errorMessage = data['message'];
+        }
+
+        return {
+          'success': false,
+          'message': errorMessage
+        };
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'message': 'Session expirée, veuillez vous reconnecter'
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Erreur lors du changement de mot de passe'
+        };
+      }
+    } catch (e) {
+      print('❌ Erreur changePassword: $e');
+      return {
+        'success': false,
+        'message': 'Erreur de connexion. Vérifiez votre connexion internet.'
+      };
+    }
+  }
+
+// Mettre à jour le profil utilisateur
+  static Future<Map<String, dynamic>> updateProfile({
+    required String nom,
+    required String prenom,
+    required String email,
+    String? telephone,
+  }) async {
+    try {
+      if (!await isAuthenticated()) {
+        return {
+          'success': false,
+          'message': 'Utilisateur non authentifié. Veuillez vous connecter.'
+        };
+      }
+
+      // Récupérer l'ID utilisateur depuis les données stockées
+      final userData = await getCurrentUserData();
+      if (userData == null) {
+        return {
+          'success': false,
+          'message': 'Données utilisateur non trouvées'
+        };
+      }
+
+      final userId = userData['id'];
+      final headers = await _getHeaders();
+
+      print('👤 Mise à jour profil utilisateur ID: $userId');
+      print('📍 URL: $baseUrl/profile/$userId');
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/profile/$userId'),
+        headers: headers,
+        body: jsonEncode({
+          'nom': nom,
+          'prenom': prenom,
+          'email': email,
+          if (telephone != null && telephone.isNotEmpty) 'telephone': telephone,
+        }),
+      );
+
+      print('📡 updateProfile - Status: ${response.statusCode}');
+      print('📝 updateProfile - Response: ${response.body}');
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        // Mettre à jour les données locales
+        if (data['data'] != null) {
+          await saveUserData(data['data']);
+        }
+
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Profil mis à jour avec succès',
+          'data': data['data']
+        };
+      } else if (response.statusCode == 422) {
+        String errorMessage = 'Erreur de validation';
+        if (data['errors'] != null) {
+          final errors = data['errors'] as Map<String, dynamic>;
+          errorMessage = errors.values.first[0];
+        } else if (data['message'] != null) {
+          errorMessage = data['message'];
+        }
+        return {
+          'success': false,
+          'message': errorMessage
+        };
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'message': 'Session expirée, veuillez vous reconnecter'
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Erreur lors de la mise à jour'
+        };
+      }
+    } catch (e) {
+      print('❌ Erreur updateProfile: $e');
+      return {
+        'success': false,
+        'message': 'Erreur de connexion. Vérifiez votre connexion internet.'
+      };
+    }
+  }
+
+// Récupérer les données de l'utilisateur connecté
+  static Future<Map<String, dynamic>?> getCurrentUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userData = prefs.getString('user_data');
+
+      if (userData != null) {
+        return jsonDecode(userData);
+      }
+
+      print('⚠️ Aucune donnée utilisateur trouvée en local');
+      return null;
+    } catch (e) {
+      print('❌ Erreur getCurrentUserData: $e');
+      return null;
+    }
+  }
+
+// Sauvegarder les données utilisateur localement
+  static Future<void> saveUserData(Map<String, dynamic> userData) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_data', jsonEncode(userData));
+      print('✅ Données utilisateur sauvegardées localement');
+    } catch (e) {
+      print('❌ Erreur saveUserData: $e');
+    }
+  }
+
+// Récupérer le profil utilisateur depuis l'API
+  static Future<Map<String, dynamic>?> fetchUserProfile() async {
+    try {
+      if (!await isAuthenticated()) {
+        print('❌ Pas de token pour récupérer le profil');
+        return null;
+      }
+
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/profile'),
+        headers: headers,
+      );
+
+      print('📡 fetchUserProfile - Status: ${response.statusCode}');
+      print('📝 fetchUserProfile - Response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['data'] ?? data;
+      } else if (response.statusCode == 401) {
+        print('⚠️ Session expirée lors de la récupération du profil');
+        return null;
+      } else {
+        print('❌ Erreur lors de la récupération du profil: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Erreur fetchUserProfile: $e');
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getEleveByUserId(int userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('auth_token') ??
+          prefs.getString('token') ??
+          prefs.getString('access_token') ??
+          prefs.getString('user_token');
+
+      if (token == null) {
+        return {
+          'success': false,
+          'message': 'Token d\'authentification non trouvé'
+        };
+      }
+
+      final headers = {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/eleves/users/$userId'),
+        headers: headers,
+      );
+
+      print('🔍 Requête élève pour user_id: $userId');
+      print('📡 Status code: ${response.statusCode}');
+      print('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true) {
+          return {
+            'success': true,
+            'data': data['data'],
+            'message': 'Données élève récupérées avec succès'
+          };
+        } else {
+          return {
+            'success': false,
+            'message': data['message'] ?? 'Erreur lors de la récupération des données'
+          };
+        }
+      } else if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'message': 'Élève non trouvé'
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Erreur serveur: ${response.statusCode}'
+        };
+      }
+    } catch (e) {
+      print('❌ Erreur lors de la récupération des données élève: $e');
+      return {
+        'success': false,
+        'message': 'Erreur de connexion: $e'
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteUser(int userId) async {
+    try {
+      if (!await isAuthenticated()) {
+        return {
+          'success': false,
+          'message': 'Utilisateur non authentifié. Veuillez vous connecter.'
+        };
+      }
+
+      final headers = await _getHeaders();
+
+      print('🗑️ Suppression de l\'utilisateur ID: $userId');
+      print('📍 URL: $baseUrl/admin/users/$userId');
+
+      final response = await http.delete(
+        Uri.parse('$baseUrl/admin/users/$userId'),
+        headers: headers,
+      );
+
+      print('📡 deleteUser - Status: ${response.statusCode}');
+      print('📝 deleteUser - Response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Utilisateur supprimé avec succès'
+        };
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'message': 'Session expirée, veuillez vous reconnecter'
+        };
+      } else if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'message': 'Utilisateur non trouvé'
+        };
+      } else {
+        final data = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Erreur lors de la suppression'
+        };
+      }
+    } catch (e) {
+      print('❌ Erreur deleteUser: $e');
+      return {
+        'success': false,
+        'message': 'Erreur de connexion. Vérifiez votre connexion internet.'
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateUser(int userId, Map<String, dynamic> userData) async {
+    try {
+      if (!await isAuthenticated()) {
+        return {
+          'success': false,
+          'message': 'Utilisateur non authentifié. Veuillez vous connecter.'
+        };
+      }
+
+      final headers = await _getHeaders();
+
+      print('✏️ Mise à jour de l\'utilisateur ID: $userId');
+      print('📦 Données: $userData');
+      print('📍 URL: $baseUrl/admin/users/$userId');
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/admin/users/$userId'),
+        headers: headers,
+        body: jsonEncode(userData),
+      );
+
+      print('📡 updateUser - Status: ${response.statusCode}');
+      print('📝 updateUser - Response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Utilisateur mis à jour avec succès',
+          'data': data['data']
+        };
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'message': 'Session expirée, veuillez vous reconnecter'
+        };
+      } else if (response.statusCode == 422) {
+        final data = jsonDecode(response.body);
+        String errorMessage = 'Erreur de validation';
+        if (data['errors'] != null) {
+          final errors = data['errors'] as Map<String, dynamic>;
+          errorMessage = errors.values.first[0];
+        } else if (data['message'] != null) {
+          errorMessage = data['message'];
+        }
+        return {
+          'success': false,
+          'message': errorMessage
+        };
+      } else {
+        final data = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Erreur lors de la mise à jour'
+        };
+      }
+    } catch (e) {
+      print('❌ Erreur updateUser: $e');
+      return {
+        'success': false,
+        'message': 'Erreur de connexion. Vérifiez votre connexion internet.'
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> getUserById(int userId) async {
+    try {
+      if (!await isAuthenticated()) {
+        return {
+          'success': false,
+          'message': 'Utilisateur non authentifié. Veuillez vous connecter.'
+        };
+      }
+
+      final headers = await _getHeaders();
+
+      print('🔍 Récupération de l\'utilisateur ID: $userId');
+      print('📍 URL: $baseUrl/admin/users/$userId');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/users/$userId'),
+        headers: headers,
+      );
+
+      print('📡 getUserById - Status: ${response.statusCode}');
+      print('📝 getUserById - Response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'data': data['data'] ?? data
+        };
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'message': 'Session expirée, veuillez vous reconnecter'
+        };
+      } else if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'message': 'Utilisateur non trouvé'
+        };
+      } else {
+        final data = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Erreur lors de la récupération'
+        };
+      }
+    } catch (e) {
+      print('❌ Erreur getUserById: $e');
+      return {
+        'success': false,
+        'message': 'Erreur de connexion. Vérifiez votre connexion internet.'
+      };
+    }
+  }
+
+
 }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../services/departement_service.dart';
 import '../services/user_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CreateDepartementScreen extends StatefulWidget {
   const CreateDepartementScreen({Key? key}) : super(key: key);
@@ -14,11 +17,9 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
   final _nomDepartementController = TextEditingController();
 
   int? _selectedBatimentId;
-  int? _selectedUserId;
   int? _selectedFormateurId;
 
   List<Map<String, dynamic>> _batiments = [];
-  List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _formateurs = [];
 
   bool _isLoading = false;
@@ -40,12 +41,10 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
     });
 
     try {
-      print('Chargement des données initiales...');
+      print('🔄 Chargement des données initiales...');
 
-      // Charger les bâtiments, utilisateurs et formateurs en parallèle
       await Future.wait([
         _loadBatiments(),
-        _loadUsers(),
         _loadFormateurs(),
       ]);
 
@@ -55,13 +54,12 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
         _isLoadingData = false;
       });
 
-      print('Données chargées avec succès');
-      print('Bâtiments: ${_batiments.length}');
-      print('Utilisateurs: ${_users.length}');
-      print('Formateurs: ${_formateurs.length}');
+      print('✅ Données chargées:');
+      print('  - Bâtiments: ${_batiments.length}');
+      print('  - Formateurs: ${_formateurs.length}');
 
     } catch (e) {
-      print('Erreur lors du chargement des données: $e');
+      print('❌ Erreur lors du chargement: $e');
 
       if (!mounted) return;
 
@@ -70,19 +68,7 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
         _errorMessage = 'Erreur lors du chargement des données: $e';
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur: $e'),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          action: SnackBarAction(
-            label: 'Réessayer',
-            textColor: Colors.white,
-            onPressed: _loadInitialData,
-          ),
-        ),
-      );
+      _showError('Erreur lors du chargement: $e');
     }
   }
 
@@ -93,9 +79,11 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
         setState(() {
           _batiments = batiments ?? [];
         });
+        print('✅ ${_batiments.length} bâtiments chargés');
       }
     } catch (e) {
-      print('Erreur chargement bâtiments: $e');
+      print('❌ Erreur chargement bâtiments: $e');
+      // Fallback avec des données d'exemple
       if (mounted) {
         setState(() {
           _batiments = [
@@ -108,89 +96,158 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
     }
   }
 
-  Future<void> _loadUsers() async {
-    try {
-      final users = await UserService.getAllUsers();
-      if (mounted) {
-        setState(() {
-          _users = users ?? [];
-        });
-      }
-    } catch (e) {
-      print('Erreur chargement utilisateurs: $e');
-      if (mounted) {
-        setState(() {
-          _users = [
-            {'id': 1, 'nom': 'Admin', 'prenom': 'System'},
-            {'id': 2, 'nom': 'Directeur', 'prenom': 'Principal'},
-          ];
-        });
-      }
-    }
-  }
-
+  // 🔥 MÉTHODE SIMPLIFIÉE : Utilise seulement l'API des formateurs
   Future<void> _loadFormateurs() async {
     try {
       print('🔍 Chargement des formateurs depuis l\'API...');
 
-      // Essayer d'abord de récupérer les vrais formateurs
+      // 🎯 MÉTHODE 1: Utiliser le service DepartementService
       final formateurs = await DepartementService.getFormateurs();
+
+      if (formateurs.isNotEmpty && mounted) {
+        setState(() {
+          _formateurs = formateurs;
+        });
+
+        print('✅ ${_formateurs.length} formateurs chargés depuis DepartementService:');
+        for (var formateur in _formateurs.take(3)) {
+          print('  - ${formateur['full_name']} (ID: ${formateur['id']})');
+        }
+        return;
+      }
+
+    } catch (e) {
+      print('⚠ Échec DepartementService.getFormateurs(): $e');
+    }
+
+    // 🎯 MÉTHODE 2: Essayer les endpoints directs
+    try {
+      final formateurs = await _getFormateursDirectAPI();
+
+      if (formateurs.isNotEmpty && mounted) {
+        setState(() {
+          _formateurs = formateurs;
+        });
+
+        print('✅ ${_formateurs.length} formateurs chargés depuis API directe:');
+        for (var formateur in _formateurs.take(3)) {
+          print('  - ${formateur['full_name']} (ID: ${formateur['id']})');
+        }
+        return;
+      }
+
+    } catch (e) {
+      print('⚠ Échec API directe: $e');
+    }
+
+    // 🎯 MÉTHODE 3: Fallback - Utiliser les utilisateurs avec rôle formateur
+    try {
+      final formateurs = await _getFormateursFromUsers();
 
       if (mounted) {
         setState(() {
           _formateurs = formateurs;
         });
 
-        print('✅ Formateurs chargés avec leurs VRAIS IDs:');
-        for (var formateur in _formateurs) {
-          print('  - ID: ${formateur['id']}, Nom: ${formateur['nom']}, Prénom: ${formateur['prenom']}');
-        }
+        print('⚠ ${_formateurs.length} formateurs depuis fallback utilisateurs');
       }
 
     } catch (e) {
-      print('❌ Erreur chargement formateurs depuis API: $e');
-
-      // Si l'API principale échoue, essayer une méthode alternative
-      try {
-        print('⚠ Tentative de récupération des formateurs par une méthode alternative');
-
-        // Vérifier si il y a une méthode alternative dans le service
-        final formateursList = await _getFormateursAlternative();
-
-        if (mounted) {
-          setState(() {
-            _formateurs = formateursList;
-          });
-
-          if (_formateurs.isNotEmpty) {
-            print('✅ Formateurs chargés par méthode alternative:');
-            for (var formateur in _formateurs) {
-              print('  - ID: ${formateur['id']}, Nom: ${formateur['nom']}, Prénom: ${formateur['prenom']}');
-            }
-          } else {
-            print('⚠ Aucun formateur trouvé');
-          }
-        }
-
-      } catch (e2) {
-        print('❌ Erreur totale lors du chargement des formateurs: $e2');
-        if (mounted) {
-          setState(() {
-            _formateurs = [];
-          });
-        }
+      print('❌ Échec total chargement formateurs: $e');
+      if (mounted) {
+        setState(() {
+          _formateurs = [];
+        });
       }
     }
   }
 
-  // Méthode alternative pour récupérer les formateurs
-  Future<List<Map<String, dynamic>>> _getFormateursAlternative() async {
-    try {
-      // Option 1: Essayer une autre méthode du service si elle existe
-      // return await DepartementService.getFormateursAlternative();
+  // Helper pour récupérer les headers d'authentification
+  Future<Map<String, String>> _getHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
 
-      // Option 2: Si on doit absolument utiliser les utilisateurs avec rôle formateur,
-      // s'assurer qu'on récupère les bonnes informations
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  // 🔥 MÉTHODE DIRECTE: Récupérer formateurs depuis API
+  Future<List<Map<String, dynamic>>> _getFormateursDirectAPI() async {
+    final headers = await _getHeaders();
+
+    // Tester différents endpoints
+    List<String> endpoints = [
+      '${DepartementService.baseUrl}/admin/formateurs',
+      '${DepartementService.baseUrl}/formateurs',
+    ];
+
+    for (String endpoint in endpoints) {
+      try {
+        print('🔄 Test endpoint: $endpoint');
+
+        final response = await http.get(
+          Uri.parse(endpoint),
+          headers: headers,
+        );
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+
+          List<Map<String, dynamic>> formateurs;
+          if (data is List) {
+            formateurs = List<Map<String, dynamic>>.from(data);
+          } else if (data is Map && data.containsKey('data')) {
+            formateurs = List<Map<String, dynamic>>.from(data['data']);
+          } else {
+            continue;
+          }
+
+          // Traiter les formateurs
+          List<Map<String, dynamic>> formateursTraites = [];
+          for (var formateur in formateurs) {
+            Map<String, dynamic> formateurTraite = {
+              'id': formateur['id'], // ✅ ID formateur réel
+              'user_id': formateur['user_id'],
+              'specialite_id': formateur['specialite_id'],
+            };
+
+            // Récupérer nom/prénom
+            if (formateur['user'] != null) {
+              formateurTraite['nom'] = formateur['user']['nom'] ?? '';
+              formateurTraite['prenom'] = formateur['user']['prenom'] ?? '';
+              formateurTraite['email'] = formateur['user']['email'] ?? '';
+            } else {
+              formateurTraite['nom'] = formateur['nom'] ?? '';
+              formateurTraite['prenom'] = formateur['prenom'] ?? '';
+            }
+
+            formateurTraite['full_name'] = '${formateurTraite['prenom']} ${formateurTraite['nom']}'.trim();
+
+            if (formateurTraite['full_name'].isNotEmpty) {
+              formateursTraites.add(formateurTraite);
+            }
+          }
+
+          if (formateursTraites.isNotEmpty) {
+            print('✅ ${formateursTraites.length} formateurs trouvés avec $endpoint');
+            return formateursTraites;
+          }
+        }
+      } catch (e) {
+        print('❌ Échec $endpoint: $e');
+        continue;
+      }
+    }
+
+    return [];
+  }
+
+  // 🎯 FALLBACK: Récupérer formateurs depuis les utilisateurs (SANS mapping manuel)
+  Future<List<Map<String, dynamic>>> _getFormateursFromUsers() async {
+    try {
       final users = await UserService.getAllUsers();
       final roles = await UserService.getRoles();
 
@@ -203,63 +260,35 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
         final formateursUsers = users.where((user) =>
         user['role_id'] == formateurRole['id']).toList();
 
-        // IMPORTANT: Ici il faut mapper vers les vrais IDs de formateur
-        // Cette partie dépend de votre structure de base de données
         List<Map<String, dynamic>> formateurs = [];
 
         for (var user in formateursUsers) {
-          // Récupérer l'ID formateur correspondant à cet utilisateur
-          // Ceci est un exemple - adaptez selon votre structure DB
-          try {
-            final formateurId = await _getFormateurIdFromUserId(user['id']);
-            if (formateurId != null) {
-              formateurs.add({
-                'id': formateurId, // ✅ VRAI ID de formateur
-                'nom': user['nom'],
-                'prenom': user['prenom'],
-                'user_id': user['id'], // Garder l'ID utilisateur si nécessaire
-              });
-            }
-          } catch (e) {
-            print('Erreur lors de la récupération de l\'ID formateur pour l\'utilisateur ${user['id']}: $e');
-          }
+          // ⚠️ ATTENTION: Ici on utilise l'ID utilisateur comme ID formateur
+          // Ce n'est pas idéal mais c'est le fallback
+          formateurs.add({
+            'id': user['id'], // ⚠️ ID utilisateur (pas idéal)
+            'user_id': user['id'],
+            'nom': user['nom'],
+            'prenom': user['prenom'],
+            'full_name': '${user['prenom']} ${user['nom']}'.trim(),
+            'email': user['email'],
+            'telephone': user['telephone'],
+            'is_fallback': true, // Flag pour indiquer que c'est un fallback
+          });
         }
+
+        print('⚠️ Fallback: ${formateurs.length} formateurs depuis utilisateurs');
+        print('⚠️ ATTENTION: Les IDs peuvent ne pas correspondre aux vrais IDs formateurs');
 
         return formateurs;
       }
 
       return [];
     } catch (e) {
-      print('Erreur dans la méthode alternative: $e');
+      print('❌ Erreur fallback formateurs: $e');
       return [];
     }
   }
-
-  // Méthode pour récupérer l'ID formateur à partir de l'ID utilisateur
-  Future<int?> _getFormateurIdFromUserId(int userId) async {
-    try {
-      // OPTION A: Si vous avez une table formateurs avec user_id
-      // Créez cette méthode dans DepartementService :
-      // return await DepartementService.getFormateurIdByUserId(userId);
-
-      // OPTION B: Si formateur_id = user_id dans votre cas
-      // return userId;
-
-      // OPTION C: Si vous devez faire une requête spécifique
-      // Exemple : récupérer depuis une table de liaison
-      print('🔍 Récupération de l\'ID formateur pour l\'utilisateur $userId');
-
-      // Pour l'instant, retournons l'ID utilisateur
-      // VOUS DEVEZ ADAPTER CETTE PARTIE selon votre structure DB
-      return userId;
-
-    } catch (e) {
-      print('❌ Erreur lors de la récupération de l\'ID formateur: $e');
-      return null;
-    }
-  }
-
-
 
   Future<void> _createDepartement() async {
     if (!_formKey.currentState!.validate()) return;
@@ -269,20 +298,15 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
       return;
     }
 
-    if (_selectedUserId == null) {
-      _showError('Veuillez sélectionner un utilisateur');
-      return;
-    }
-
     if (_selectedFormateurId == null) {
-      _showError('Veuillez sélectionner un formateur');
+      _showError('Veuillez sélectionner un formateur chef de département');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // Vérifier que l'ID formateur sélectionné est valide
+      // Vérifier le formateur sélectionné
       final selectedFormateur = _formateurs.firstWhere(
             (f) => f['id'] == _selectedFormateurId,
         orElse: () => {},
@@ -292,22 +316,27 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
         throw Exception('Formateur sélectionné introuvable');
       }
 
+      // ⚠️ Vérifier si c'est un fallback
+      if (selectedFormateur['is_fallback'] == true) {
+        print('⚠️ ATTENTION: Utilisation d\'un formateur fallback');
+        print('⚠️ L\'ID ${_selectedFormateurId} pourrait ne pas être le vrai ID formateur');
+      }
+
       final departementData = {
         'nom_departement': _nomDepartementController.text.trim(),
         'batiment_id': _selectedBatimentId,
-        'user_id': _selectedUserId,
-        'formateur_id': _selectedFormateurId, // ✅ Maintenant c'est le vrai ID formateur
+        'formateur_id': _selectedFormateurId,
       };
 
       print('📤 Données département à envoyer: $departementData');
-      print('📋 Formateur sélectionné: ${selectedFormateur['nom']} ${selectedFormateur['prenom']} (ID: ${selectedFormateur['id']})');
+      print('📋 Formateur chef sélectionné: ${selectedFormateur['full_name']}');
 
       final result = await DepartementService.createDepartement(departementData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Département "${_nomDepartementController.text}" créé avec succès !'),
+            content: Text('Département "${_nomDepartementController.text}" créé avec succès !\nChef: ${selectedFormateur['full_name']}'),
             backgroundColor: const Color(0xFF10B981),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -481,23 +510,10 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Utilisateur responsable
+              // Formateur chef de département
               _buildDropdown(
-                title: 'Utilisateur',
-                icon: Icons.person_rounded,
-                color: Colors.red.shade300,
-                items: _users,
-                selectedValue: _selectedUserId,
-                onChanged: (value) => setState(() => _selectedUserId = value),
-                emptyMessage: 'Aucun utilisateur disponible',
-                displayKey: 'full_name',
-              ),
-              const SizedBox(height: 20),
-
-              // Formateur
-              _buildDropdown(
-                title: 'Formateur',
-                icon: Icons.school_rounded,
+                title: 'Formateur Chef de Département',
+                icon: Icons.account_balance_rounded,
                 color: const Color(0xFF10B981),
                 items: _formateurs,
                 selectedValue: _selectedFormateurId,
@@ -506,6 +522,32 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
                 displayKey: 'full_name',
               ),
               const SizedBox(height: 32),
+
+              // Note explicative
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F9FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Color(0xFF3B82F6)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Le formateur sélectionné deviendra automatiquement le chef de ce département.',
+                        style: TextStyle(
+                          color: const Color(0xFF3B82F6),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
 
               // Bouton de création
               _buildCreateButton(),
@@ -731,7 +773,7 @@ class _CreateDepartementScreenState extends State<CreateDepartementScreen> {
         ],
       ),
       child: ElevatedButton(
-        onPressed: (_isLoading || _batiments.isEmpty || _users.isEmpty || _formateurs.isEmpty)
+        onPressed: (_isLoading || _batiments.isEmpty || _formateurs.isEmpty)
             ? null
             : _createDepartement,
         style: ElevatedButton.styleFrom(

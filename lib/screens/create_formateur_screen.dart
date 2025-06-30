@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../services/user_service.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 
 class CreateFormateurScreen extends StatefulWidget {
   const CreateFormateurScreen({Key? key}) : super(key: key);
@@ -162,16 +163,8 @@ class _CreateFormateurScreenState extends State<CreateFormateurScreen> {
       final result = await UserService.createUser(userData);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Formateur créé avec succès!\nMot de passe: ${result['data']['password']}'),
-            duration: const Duration(seconds: 5),
-            backgroundColor: const Color(0xFF10B981),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-        Navigator.pop(context);
+        // ✅ NOUVEAU: Dialog avec informations complètes
+        await _showSuccessDialog(result);
       }
     } catch (e) {
       print('Erreur lors de la création du formateur: $e');
@@ -192,6 +185,285 @@ class _CreateFormateurScreenState extends State<CreateFormateurScreen> {
     }
   }
 
+// ✅ NOUVELLE MÉTHODE: Afficher le dialog de succès
+  Future<void> _showSuccessDialog(Map<String, dynamic> result) async {
+    final user = result['data']['user'];
+    final password = result['data']['password'];
+    final matricule = result['data']['matricule'];
+    final role = result['data']['role'];
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false, // L'utilisateur DOIT cliquer OK
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  color: Color(0xFF10B981),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Formateur créé !',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Informations de l'utilisateur
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${user['prenom']} ${user['nom']}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildInfoRow(Icons.email_rounded, 'Email', user['email']),
+                      _buildInfoRow(Icons.badge_rounded, 'Matricule', matricule),
+                      _buildInfoRow(Icons.work_rounded, 'Rôle', role),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Identifiants de connexion
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF3B82F6).withOpacity(0.1),
+                        const Color(0xFF1D4ED8).withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.vpn_key_rounded,
+                            color: Color(0xFF3B82F6),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Identifiants de connexion',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF3B82F6),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Login
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Text(
+                              'Login: ',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                user['email'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1F2937),
+                                ),
+                              ),
+                            ),
+
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: Row(
+                          children: [
+                             Text(
+                              'Mot de passe: ',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                password,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1F2937),
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        color: Color(0xFFF59E0B),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Transmettez ces identifiants au formateur pour qu\'il puisse se connecter.',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF92400E),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+
+            Container(
+              width: double.infinity,
+              height: 48,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // Ferme le dialog
+                  Navigator.of(context).pop(); // Retourne à l'écran précédent
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Terminé',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+// ✅ MÉTHODE HELPER: Construire une ligne d'info
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF6B7280)),
+          const SizedBox(width: 8),
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              color: Color(0xFF6B7280),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Color(0xFF1F2937),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -205,7 +477,7 @@ class _CreateFormateurScreenState extends State<CreateFormateurScreen> {
           ),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: const Color(0xFF3B82F6),
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
@@ -264,8 +536,9 @@ class _CreateFormateurScreenState extends State<CreateFormateurScreen> {
             ),
             child: const Column(
               children: [
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                SpinKitThreeInOut(
+                  color: Color(0xFF3B82F6),
+                  size: 35.0,
                 ),
                 SizedBox(height: 16),
                 Text(
@@ -645,58 +918,149 @@ class _CreateFormateurScreenState extends State<CreateFormateurScreen> {
 
   Widget _buildSpecialiteDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          hint: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.school_rounded, color: Color(0xFF10B981), size: 20),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                _specialites.isEmpty
-                    ? 'Aucune spécialité disponible'
-                    : 'Sélectionner une spécialité',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF6B7280),
-                ),
-              ),
-            ],
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
           ),
-          value: _selectedSpecialiteId,
-          isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF6B7280)),
-          items: _specialites.map((specialite) {
-            return DropdownMenuItem<int>(
-              value: specialite['id'],
-              child: Text(
-                specialite['intitule']?.toString() ?? 'Sans nom',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF1F2937),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white,
+              const Color(0xFFFAFBFC),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _selectedSpecialiteId != null
+                ? const Color(0xFF3B82F6)
+                : const Color(0xFFE2E8F0),
+            width: 1.7,
+          ),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<int>(
+            hint: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF3B82F6).withOpacity(0.1),
+                        const Color(0xFF1D4ED8).withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.school_rounded,
+                    color: Color(0xFF3B82F6),
+                    size: 20,
+                  ),
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _specialites.isEmpty
+                        ? 'Aucune spécialité disponible'
+                        : 'Sélectionner une spécialité',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            value: _selectedSpecialiteId,
+            isExpanded: true,
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF64748B).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-            );
-          }).toList(),
-          onChanged: _specialites.isEmpty
-              ? null
-              : (value) {
-            setState(() => _selectedSpecialiteId = value);
-          },
+              child: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Color(0xFF64748B),
+                size: 20,
+              ),
+            ),
+            dropdownColor: Colors.white,
+            elevation: 8,
+            borderRadius: BorderRadius.circular(12),
+            items: _specialites.map((specialite) {
+              return DropdownMenuItem<int>(
+                value: specialite['id'],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFF3B82F6).withOpacity(0.1),
+                              const Color(0xFF1D4ED8).withOpacity(0.05),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.medical_services_rounded,
+                          color: Color(0xFF3B82F6),
+                          size: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          specialite['intitule']?.toString() ?? 'Sans nom',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ),
+                      if (_selectedSpecialiteId == specialite['id'])
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.check_rounded,
+                            color: Color(0xFF10B981),
+                            size: 16,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+            onChanged: _specialites.isEmpty
+                ? null
+                : (value) {
+              setState(() => _selectedSpecialiteId = value);
+            },
+          ),
         ),
       ),
     );

@@ -8,7 +8,7 @@ class DepartementService {
   // Récupération du token depuis SharedPreferences
   static Future<String?> _getAuthToken() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token');
+    final token = prefs.getString('auth_token');
     print('🔑 Token récupéré: ${token != null ? "✅ Présent" : "❌ Absent"}');
     if (token != null) {
       print('🔑 Token (premiers 20 caractères): ${token.substring(0, token.length > 20 ? 20 : token.length)}...');
@@ -233,6 +233,9 @@ class DepartementService {
     }
   }
 
+ 
+
+
   // Récupérer un département spécifique par ID
   static Future<Map<String, dynamic>> getDepartementById(int id) async {
     try {
@@ -307,7 +310,7 @@ class DepartementService {
   static Future<List<Map<String, dynamic>>> getFormateurs() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/formateurs'), // Endpoint pour récupérer les formateurs
+        Uri.parse('$baseUrl/admin/formateurs'), // ou '$baseUrl/admin/formateurs' selon votre route
         headers: await _getHeaders(),
       );
 
@@ -327,23 +330,44 @@ class DepartementService {
           throw Exception('Format de réponse inattendu');
         }
 
-        // Ajouter full_name pour l'affichage
-        for (var formateur in formateurs) {
-          formateur['full_name'] = '${formateur['prenom'] ?? ''} ${formateur['nom'] ?? ''}'.trim();
-        }
+        // 🔥 CORRECTION : S'assurer qu'on utilise les bons IDs
+        List<Map<String, dynamic>> formateursCorriges = [];
 
-        print('✅ Formateurs récupérés avec leurs IDs de formateurs:');
-        for (var formateur in formateurs) {
-          print('  - Formateur ID: ${formateur['id']}, User ID: ${formateur['user_id']}, Nom: ${formateur['full_name']}');
-        }
+    for (var formateur in formateurs) {
+    // Vérifier si on a un vrai ID formateur ou si c'est un user_id
+    Map<String, dynamic> formateurCorrige = {
+    // Si la réponse contient déjà un ID formateur, l'utiliser
+    'id': formateur['id'] ?? formateur['formateur_id'],
+    'nom': formateur['nom'] ?? formateur['user']?['nom'] ?? '',
+    'prenom': formateur['prenom'] ?? formateur['user']?['prenom'] ?? '',
+    'user_id': formateur['user_id'],
+    'specialite_id': formateur['specialite_id'],
+    // Ajouter d'autres champs si nécessaire
+    if (formateur['user'] != null) ...{
+    'email': formateur['user']['email'],
+    'telephone': formateur['user']['telephone'],
+    'matricule': formateur['user']['matricule'],
+    }
+    };
 
-        return formateurs;
-      } else {
-        throw Exception('Erreur ${response.statusCode}: ${response.body}');
-      }
+    // Créer le nom complet pour l'affichage
+    formateurCorrige['full_name'] = '${formateurCorrige['prenom']} ${formateurCorrige['nom']}'.trim();
+
+    formateursCorriges.add(formateurCorrige);
+    }
+
+    print('✅ Formateurs corrigés avec leurs vrais IDs:');
+    for (var formateur in formateursCorriges) {
+    print('  - Formateur ID: ${formateur['id']}, User ID: ${formateur['user_id']}, Nom: ${formateur['full_name']}');
+    }
+
+    return formateursCorriges;
+    } else {
+    throw Exception('Erreur ${response.statusCode}: ${response.body}');
+    }
     } catch (e) {
-      print('❌ Erreur dans getFormateurs: $e');
-      rethrow;
+    print('❌ Erreur dans getFormateurs: $e');
+    rethrow;
     }
   }
 

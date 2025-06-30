@@ -1,45 +1,57 @@
 import 'package:flutter/material.dart';
-import 'package:memoire/screens/create_salle_screen.dart';
-import '../services/batiment_service.dart';
-import 'create_batiment_screen.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import '../services/metier_service.dart';
+import 'create_metier_screen.dart';
 
-class BatimentManageScreen extends StatefulWidget {
-  const BatimentManageScreen({super.key});
+class MetierManageScreen extends StatefulWidget {
+  const MetierManageScreen({super.key});
 
   @override
-  State<BatimentManageScreen> createState() => _BatimentManageScreenState();
+  State<MetierManageScreen> createState() => _MetierManageScreenState();
 }
 
-class _BatimentManageScreenState extends State<BatimentManageScreen> {
-  List<Map<String, dynamic>> batiments = [];
+class _MetierManageScreenState extends State<MetierManageScreen> {
+  List<Map<String, dynamic>> metiers = [];
+  List<Map<String, dynamic>> departements = []; // 🔥 AJOUT : Cache des départements
+  List<Map<String, dynamic>> niveaux = []; // 🔥 AJOUT : Cache des niveaux
   bool isLoading = true;
   String searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _loadBatiments();
+    _loadAllData(); // 🔥 CHANGEMENT : Charger tout en même temps
   }
 
-  Future<void> _loadBatiments() async {
+  // 🔥 NOUVELLE MÉTHODE : Charger métiers ET départements/niveaux
+  Future<void> _loadAllData() async {
     setState(() {
       isLoading = true;
     });
 
     try {
-      final data = await BatimentService.getAllBatiments();
+      // Charger métiers, départements et niveaux en parallèle
+      final results = await Future.wait([
+        MetierService.getAllMetiers(),
+        MetierService.getDepartements(),
+        MetierService.getNiveaux(),
+      ]);
+
       setState(() {
-        batiments = data;
+        metiers = results[0];
+        departements = results[1];
+        niveaux = results[2];
         isLoading = false;
       });
 
-      print('✅ TOTAL bâtiments chargés: ${batiments.length}');
+      print('✅ TOTAL chargé: ${metiers.length} métiers, ${departements.length} départements, ${niveaux.length} niveaux');
 
       // Debug pour voir les données
-      for (int i = 0; i < batiments.length && i < 3; i++) {
-        final bat = batiments[i];
-        print('🏢 Bâtiment $i: ${bat['intitule']} - ID: ${bat['id']}');
+      for (int i = 0; i < metiers.length && i < 3; i++) {
+        final metier = metiers[i];
+        final deptName = _getDepartementName(metier['departement_id']);
+        final niveauName = _getNiveauName(metier['niveau_id']);
+        print('💼 Métier $i: ${metier['intitule']} - Dept: $deptName - Niveau: $niveauName');
       }
     } catch (e) {
       setState(() {
@@ -57,12 +69,53 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
     }
   }
 
-  List<Map<String, dynamic>> get filteredBatiments {
-    return batiments.where((bat) {
-      final queryLower = searchQuery.toLowerCase();
-      final intitule = (bat['intitule']?.toString() ?? '').toLowerCase();
+  // 🔥 NOUVELLE MÉTHODE : Récupérer le nom du département par ID
+  String _getDepartementName(int? departementId) {
+    if (departementId == null) return 'Aucun département';
 
-      return intitule.contains(queryLower);
+    try {
+      final dept = departements.firstWhere(
+            (d) => d['id'] == departementId,
+        orElse: () => <String, dynamic>{},
+      );
+      return dept['nom_departement']?.toString() ?? 'Département $departementId';
+    } catch (e) {
+      return 'Département $departementId';
+    }
+  }
+
+  // 🔥 NOUVELLE MÉTHODE : Récupérer le nom du niveau par ID
+  String _getNiveauName(int? niveauId) {
+    if (niveauId == null) return 'Aucun niveau';
+
+    try {
+      final niveau = niveaux.firstWhere(
+            (n) => n['id'] == niveauId,
+        orElse: () => <String, dynamic>{},
+      );
+      return niveau['intitule']?.toString() ?? 'Niveau $niveauId';
+    } catch (e) {
+      return 'Niveau $niveauId';
+    }
+  }
+
+  Future<void> _loadMetiers() async {
+    // 🔥 CHANGEMENT : Recharger toutes les données
+    await _loadAllData();
+  }
+
+  List<Map<String, dynamic>> get filteredMetiers {
+    return metiers.where((metier) {
+      final queryLower = searchQuery.toLowerCase();
+      final intitule = (metier['intitule']?.toString() ?? '').toLowerCase();
+      final duree = (metier['duree']?.toString() ?? '').toLowerCase();
+      final departement = (metier['departement']?['nom_departement']?.toString() ?? '').toLowerCase();
+      final niveau = (metier['niveau']?['intitule']?.toString() ?? '').toLowerCase();
+
+      return intitule.contains(queryLower) ||
+          duree.contains(queryLower) ||
+          departement.contains(queryLower) ||
+          niveau.contains(queryLower);
     }).toList();
   }
 
@@ -72,11 +125,11 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
-          'Gestion des bâtiments',
+          'Gestion des métiers',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF36D6D8),
+        backgroundColor: const Color(0xFF6366F1),
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -84,12 +137,12 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const CreateBatimentScreen()),
-          ).then((_) => _loadBatiments());
+            MaterialPageRoute(builder: (context) => const CreateMetierScreen()),
+          ).then((_) => _loadAllData()); // 🔥 CHANGEMENT : Utiliser la nouvelle méthode
         },
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Nouveau bâtiment'),
-        backgroundColor: const Color(0xFF36D6D8),
+        label: const Text('Nouveau métier'),
+        backgroundColor: const Color(0xFF6366F1),
         foregroundColor: Colors.white,
         elevation: 4,
       ),
@@ -98,20 +151,20 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
           // Header avec recherche
           _buildSearchHeader(),
 
-          // Liste des bâtiments
+          // Liste des métiers
           Expanded(
             child: isLoading
-                ? const  Center(
+                ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   SpinKitThreeInOut(
-                    color: const Color(0xFF36D6D8),
+                    color: Color(0xFF6366F1),
                     size: 30.0,
                   ),
                   SizedBox(height: 16),
                   Text(
-                    'Chargement des batiments...',
+                    'Chargement des métiers...',
                     style: TextStyle(
                       color: Color(0xFF64748B),
                       fontSize: 16,
@@ -120,9 +173,9 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
                 ],
               ),
             )
-                : filteredBatiments.isEmpty
+                : filteredMetiers.isEmpty
                 ? _buildEmptyState()
-                : _buildBatimentsList(),
+                : _buildMetiersList(),
           ),
         ],
       ),
@@ -150,7 +203,7 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
         ),
         child: TextField(
           decoration: const InputDecoration(
-            hintText: 'Rechercher un bâtiment...',
+            hintText: 'Rechercher un métier...',
             hintStyle: TextStyle(color: Color(0xFF64748B)),
             prefixIcon: Icon(Icons.search_rounded, color: Color(0xFF64748B)),
             border: InputBorder.none,
@@ -166,7 +219,7 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
     );
   }
 
-  Widget _buildBatimentsList() {
+  Widget _buildMetiersList() {
     return Column(
       children: [
         // Compteur
@@ -174,7 +227,7 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           child: Text(
-            '${filteredBatiments.length} bâtiment(s) trouvé(s) sur ${batiments.length} au total',
+            '${filteredMetiers.length} métier(s) trouvé(s) sur ${metiers.length} au total',
             style: const TextStyle(
               fontSize: 14,
               color: Color(0xFF64748B),
@@ -186,13 +239,13 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
         // Liste
         Expanded(
           child: RefreshIndicator(
-            onRefresh: _loadBatiments,
-            color: const Color(0xFF3B82F6),
+            onRefresh: _loadAllData, // 🔥 CHANGEMENT : Utiliser la nouvelle méthode
+            color: const Color(0xFF6366F1),
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: filteredBatiments.length,
+              itemCount: filteredMetiers.length,
               itemBuilder: (context, index) {
-                return _buildBatimentCard(filteredBatiments[index]);
+                return _buildMetierCard(filteredMetiers[index]);
               },
             ),
           ),
@@ -201,9 +254,14 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
     );
   }
 
-  Widget _buildBatimentCard(Map<String, dynamic> batiment) {
-    final String intitule = batiment['intitule']?.toString() ?? 'N/A';
+  Widget _buildMetierCard(Map<String, dynamic> metier) {
+    final String intitule = metier['intitule']?.toString() ?? 'N/A';
+    final String duree = metier['duree']?.toString() ?? 'N/A';
 
+    // 🔥 CORRECTION : Utiliser les méthodes de mapping pour récupérer les vrais noms
+    final String departement = _getDepartementName(metier['departement_id']);
+    final String niveau = _getNiveauName(metier['niveau_id']);
+    final String description = metier['description']?.toString() ?? '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -226,24 +284,24 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            // Icône de bâtiment
+            // Icône de métier
             Container(
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withOpacity(0.1),
+                color: const Color(0xFF6366F1).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
-                Icons.business_rounded,
-                color: const Color(0xFF36D6D8),
+                Icons.work_rounded,
+                color: Color(0xFF6366F1),
                 size: 24,
               ),
             ),
 
             const SizedBox(width: 16),
 
-            // Informations bâtiment
+            // Informations métier
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,7 +316,73 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 6),
+
+                  // Durée et niveau - Responsive
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          duree,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF10B981),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          niveau,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFFF59E0B),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
                   const SizedBox(height: 4),
+
+                  // Département - 🔥 MAINTENANT AVEC LE VRAI NOM
+                  Text(
+                    departement,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+
+                  if (description.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF94A3B8),
+                        fontStyle: FontStyle.italic,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -288,7 +412,7 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
                   value: 'edit',
                   child: Row(
                     children: [
-                      Icon(Icons.edit_rounded, size: 18, color: Color(0xFF3B82F6)),
+                      Icon(Icons.edit_rounded, size: 18, color: Color(0xFF6366F1)),
                       SizedBox(width: 12),
                       Text('Modifier'),
                     ],
@@ -305,7 +429,7 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
                   ),
                 ),
               ],
-              onSelected: (value) => _handleBatimentAction(value, batiment),
+              onSelected: (value) => _handleMetierAction(value, metier),
             ),
           ],
         ),
@@ -326,14 +450,14 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
               borderRadius: BorderRadius.circular(60),
             ),
             child: const Icon(
-              Icons.business_outlined,
+              Icons.work_outline,
               size: 60,
               color: Color(0xFF64748B),
             ),
           ),
           const SizedBox(height: 24),
           const Text(
-            'Aucun bâtiment trouvé',
+            'Aucun métier trouvé',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -344,7 +468,7 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
           Text(
             searchQuery.isNotEmpty
                 ? 'Essayez de modifier votre recherche'
-                : 'Commencez par ajouter des bâtiments',
+                : 'Commencez par ajouter des métiers',
             style: const TextStyle(
               fontSize: 14,
               color: Color(0xFF64748B),
@@ -366,21 +490,21 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
     );
   }
 
-  void _handleBatimentAction(String action, Map<String, dynamic> batiment) {
+  void _handleMetierAction(String action, Map<String, dynamic> metier) {
     switch (action) {
       case 'view':
-        _showBatimentDetails(batiment);
+        _showMetierDetails(metier);
         break;
       case 'edit':
-        _showEditBatimentDialog(batiment);
+        _showEditMetierDialog(metier);
         break;
       case 'delete':
-        _confirmDeleteBatiment(batiment);
+        _confirmDeleteMetier(metier);
         break;
     }
   }
 
-  void _showBatimentDetails(Map<String, dynamic> batiment) {
+  void _showMetierDetails(Map<String, dynamic> metier) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -390,19 +514,19 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withOpacity(0.1),
+                color: const Color(0xFF6366F1).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
-                Icons.business_rounded,
-                color: Color(0xFF10B981),
+                Icons.work_rounded,
+                color: Color(0xFF6366F1),
                 size: 20,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                batiment['intitule']?.toString() ?? 'Bâtiment',
+                metier['intitule']?.toString() ?? 'Métier',
                 style: const TextStyle(fontSize: 18),
               ),
             ),
@@ -412,11 +536,15 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildDetailRow('ID', batiment['id']?.toString() ?? 'N/A'),
-            _buildDetailRow('Intitulé', batiment['intitule']?.toString() ?? 'N/A'),
-            _buildDetailRow('Nombre de salles', (batiment['salles']?.length ?? 0).toString()),
-            if (batiment['created_at'] != null)
-              _buildDetailRow('Créé le', batiment['created_at']?.toString() ?? 'N/A'),
+            _buildDetailRow('ID', metier['id']?.toString() ?? 'N/A'),
+            _buildDetailRow('Intitulé', metier['intitule']?.toString() ?? 'N/A'),
+            _buildDetailRow('Durée', metier['duree']?.toString() ?? 'N/A'),
+            _buildDetailRow('Département', _getDepartementName(metier['departement_id'])),
+            _buildDetailRow('Niveau', _getNiveauName(metier['niveau_id'])),
+            if (metier['description'] != null && metier['description'].toString().isNotEmpty)
+              _buildDetailRow('Description', metier['description']?.toString() ?? 'N/A'),
+            if (metier['created_at'] != null)
+              _buildDetailRow('Créé le', metier['created_at']?.toString().split('T')[0] ?? 'N/A'),
           ],
         ),
         actions: [
@@ -450,99 +578,16 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
     );
   }
 
-  void _showEditBatimentDialog(Map<String, dynamic> batiment) {
-    final intituleController = TextEditingController(text: batiment['intitule']?.toString() ?? '');
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.edit_rounded, color: Color(0xFF3B82F6)),
-            SizedBox(width: 12),
-            Text('Modifier le bâtiment'),
-          ],
-        ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: intituleController,
-                decoration: const InputDecoration(
-                  labelText: 'Intitulé *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.title_rounded),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'L\'intitulé est obligatoire';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () => _updateBatiment(
-              context,
-              batiment['id'],
-              intituleController.text,
-              formKey,
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3B82F6),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Modifier'),
-          ),
-        ],
+  void _showEditMetierDialog(Map<String, dynamic> metier) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateMetierScreen(metierToEdit: metier),
       ),
-    );
+    ).then((_) => _loadAllData()); // 🔥 CHANGEMENT : Utiliser la nouvelle méthode
   }
 
-  void _updateBatiment(BuildContext dialogContext, int id, String intitule, GlobalKey<FormState> formKey) async {
-    if (!formKey.currentState!.validate()) return;
-
-    try {
-      await BatimentService.updateBatiment(
-        id: id,
-        intitule: intitule.trim(), adresse: '',
-      );
-
-      Navigator.pop(dialogContext);
-      await _loadBatiments();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bâtiment modifié avec succès'),
-            backgroundColor: Color(0xFF3B82F6),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur lors de la modification: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _confirmDeleteBatiment(Map<String, dynamic> batiment) {
+  void _confirmDeleteMetier(Map<String, dynamic> metier) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -559,7 +604,7 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Êtes-vous sûr de vouloir supprimer ce bâtiment ?',
+              'Êtes-vous sûr de vouloir supprimer ce métier ?',
               style: TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 16),
@@ -575,7 +620,7 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    batiment['intitule']?.toString() ?? 'N/A',
+                    metier['intitule']?.toString() ?? 'N/A',
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF991B1B),
@@ -583,7 +628,14 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${batiment['salles']?.length ?? 0} salles associées',
+                    'Durée: ${metier['duree']?.toString() ?? 'N/A'}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF7F1D1D),
+                    ),
+                  ),
+                  Text(
+                    'Département: ${metier['departement']?['nom_departement']?.toString() ?? 'N/A'}',
                     style: const TextStyle(
                       fontSize: 14,
                       color: Color(0xFF7F1D1D),
@@ -594,7 +646,7 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
             ),
             const SizedBox(height: 12),
             const Text(
-              '⚠️ Cette action est irréversible.',
+              '⚠️ Cette action est irréversible et supprimera toutes les compétences associées.',
               style: TextStyle(
                 fontSize: 14,
                 color: Color(0xFFEF4444),
@@ -609,7 +661,7 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            onPressed: () => _deleteBatiment(context, batiment['id']),
+            onPressed: () => _deleteMetier(context, metier['id']),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
@@ -621,17 +673,17 @@ class _BatimentManageScreenState extends State<BatimentManageScreen> {
     );
   }
 
-  void _deleteBatiment(BuildContext dialogContext, int id) async {
+  void _deleteMetier(BuildContext dialogContext, int id) async {
     try {
-      await BatimentService.deleteBatiment(id);
+      await MetierService.deleteMetier(id);
 
       Navigator.pop(dialogContext);
-      await _loadBatiments();
+      await _loadAllData(); // 🔥 CHANGEMENT : Utiliser la nouvelle méthode
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Bâtiment supprimé avec succès'),
+            content: Text('Métier supprimé avec succès'),
             backgroundColor: Color(0xFF10B981),
           ),
         );

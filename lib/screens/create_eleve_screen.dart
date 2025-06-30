@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../services/user_service.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 
 class CreateEleveScreen extends StatefulWidget {
   const CreateEleveScreen({Key? key}) : super(key: key);
@@ -317,8 +318,9 @@ class _CreateEleveScreenState extends State<CreateEleveScreen> {
             ),
             child: const Column(
               children: [
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                SpinKitThreeInOut(
+                  color:  Color(0xFF10B981),
+                  size: 35.0,
                 ),
                 SizedBox(height: 16),
                 Text(
@@ -443,7 +445,7 @@ class _CreateEleveScreenState extends State<CreateEleveScreen> {
               _buildSectionHeader(
                 'Informations académiques',
                 Icons.school_rounded,
-                const Color(0xFF3B82F6),
+                const Color(0xFF10B981),
               ),
               const SizedBox(height: 20),
 
@@ -729,58 +731,149 @@ class _CreateEleveScreenState extends State<CreateEleveScreen> {
 
   Widget _buildMetierDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          hint: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.work_rounded, color: Color(0xFF3B82F6), size: 20),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                _metiers.isEmpty
-                    ? 'Aucun métier disponible'
-                    : 'Sélectionner un métier',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF6B7280),
-                ),
-              ),
-            ],
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
           ),
-          value: _selectedMetierId,
-          isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF6B7280)),
-          items: _metiers.map((metier) {
-            return DropdownMenuItem<int>(
-              value: metier['id'],
-              child: Text(
-                metier['intitule']?.toString() ?? 'Sans nom',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF1F2937),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white,
+              const Color(0xFFFAFBFC),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _selectedMetierId != null
+                ? const Color(0xFF10B981)
+                : const Color(0xFFE2E8F0),
+            width: 1.7,
+          ),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<int>(
+            hint: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF10B981).withOpacity(0.1),
+                        const Color(0xFF10B981).withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.work_rounded,
+                    color: Color(0xFF10B981),
+                    size: 20,
+                  ),
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _metiers.isEmpty
+                        ? 'Aucun métier disponible'
+                        : 'Sélectionner un métier',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            value: _selectedMetierId,
+            isExpanded: true,
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF64748B).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-            );
-          }).toList(),
-          onChanged: _metiers.isEmpty
-              ? null
-              : (value) {
-            setState(() => _selectedMetierId = value);
-          },
+              child: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Color(0xFF64748B),
+                size: 20,
+              ),
+            ),
+            dropdownColor: Colors.white,
+            elevation: 8,
+            borderRadius: BorderRadius.circular(12),
+            items: _metiers.map((metier) {
+              return DropdownMenuItem<int>(
+                value: metier['id'],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFF3B82F6).withOpacity(0.1),
+                              const Color(0xFF1D4ED8).withOpacity(0.05),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.business_center_rounded,
+                          color: Color(0xFF3B82F6),
+                          size: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          metier['intitule']?.toString() ?? 'Sans nom',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ),
+                      if (_selectedMetierId == metier['id'])
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.check_rounded,
+                            color: Color(0xFF10B981),
+                            size: 16,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+            onChanged: _metiers.isEmpty
+                ? null
+                : (value) {
+              setState(() => _selectedMetierId = value);
+            },
+          ),
         ),
       ),
     );
