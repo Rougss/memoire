@@ -49,6 +49,16 @@ class _CreateCreneauScreenState extends State<CreateCreneauScreen> {
     _loadInitialData();
   }
 
+  void _debugAnnees() {
+    print('=== DEBUG ANNÉES ===');
+    print('Nombre d\'années: ${_annees.length}');
+    for (var annee in _annees) {
+      print('ID: ${annee['id']}, Intitulé: ${annee['intitule']}');
+    }
+    print('Année sélectionnée: $_selectedAnneeId');
+    print('==================');
+  }
+
   // 🆕 CHARGEMENT INITIAL : Charger années et métiers
   Future<void> _loadInitialData() async {
     setState(() => _isLoadingData = true);
@@ -66,6 +76,7 @@ class _CreateCreneauScreenState extends State<CreateCreneauScreen> {
       });
 
       print('✅ ${_annees.length} années et ${_metiersDisponibles.length} métiers chargés');
+      _debugAnnees(); // Ajout du debug
     } catch (e) {
       setState(() => _isLoadingData = false);
       _showError('Erreur lors du chargement: $e');
@@ -733,6 +744,7 @@ class _CreateCreneauScreenState extends State<CreateCreneauScreen> {
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.grey.shade300),
                     borderRadius: BorderRadius.circular(12),
+                    color: Colors.white, // Ajout d'un fond blanc
                   ),
                   child: DropdownButtonFormField<int>(
                     value: _selectedAnneeId,
@@ -741,16 +753,27 @@ class _CreateCreneauScreenState extends State<CreateCreneauScreen> {
                       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                       hintText: 'Choisir une année',
                     ),
+                    isExpanded: true, // Important : permet au dropdown de s'étendre
                     items: _annees.map((annee) {
                       return DropdownMenuItem<int>(
                         value: annee['id'],
-                        child: Text(annee['intitule'] ?? 'Année ${annee['id']}'),
+                        child: Text(
+                          annee['intitule'] ?? 'Année ${annee['id']}',
+                          style: const TextStyle(fontSize: 16),
+                        ),
                       );
                     }).toList(),
                     onChanged: (value) {
                       setState(() {
                         _selectedAnneeId = value;
                       });
+                      print('Année sélectionnée: $value'); // Debug
+                    },
+                    validator: (value) {
+                      if (value == null) {
+                        return 'Veuillez sélectionner une année';
+                      }
+                      return null;
                     },
                   ),
                 ),

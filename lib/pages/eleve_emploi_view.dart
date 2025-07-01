@@ -13,40 +13,33 @@ class EleveEmploiView extends StatefulWidget {
 }
 
 class _EleveEmploiViewState extends State<EleveEmploiView> {
+  // 🔥 DONNÉES OPTIMISÉES
   List<Map<String, dynamic>> emplois = [];
   Map<String, dynamic>? eleveData;
   Map<String, dynamic>? user;
   int? eleveMetierId;
   bool isLoading = true;
   DateTime selectedWeek = DateTime.now();
-  String typeAffichage = 'semaine'; // 'jour' ou 'semaine'
+  String typeAffichage = 'semaine';
+
+  // 🔥 CACHE INTELLIGENT POUR COULEURS
+  final Map<String, Color> _couleursCache = {};
+  final Map<String, Map<String, dynamic>?> _coursCache = {}; // Cache des cours par slot
+  String? _lastCacheKey; // Pour invalidation intelligente
 
   final List<String> creneauxHoraires = [
-    '8h - 9h',
-    '9h - 10h',
-    '10h - 11h',
-    '11h - 12h',
-    '12h - 13h',
-    '13h - 14h', // PAUSE
-    '14h - 15h',
-    '15h - 16h',
-    '16h - 17h',
+    '8h - 9h', '9h - 10h', '10h - 11h', '11h - 12h',
+    '12h - 13h', '13h - 14h', '14h - 15h', '15h - 16h', '16h - 17h',
   ];
 
   final List<String> joursSemai = [
     'LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI'
   ];
 
-  Map<String, Color> _couleursCache = {};
   final List<Color> _paletteColors = [
-    const Color(0xFF3B82F6),
-    const Color(0xFF10B981),
-    const Color(0xFFFBBF24),
-    const Color(0xFF8B5CF6),
-    const Color(0xFFEC4899),
-    const Color(0xFF06B6D4),
-    const Color(0xFF84CC16),
-    const Color(0xFF6366F1),
+    const Color(0xFF3B82F6), const Color(0xFF10B981), const Color(0xFFFBBF24),
+    const Color(0xFF8B5CF6), const Color(0xFFEC4899), const Color(0xFF06B6D4),
+    const Color(0xFF84CC16), const Color(0xFF6366F1),
   ];
 
   @override
@@ -61,37 +54,58 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
     selectedWeek = now.subtract(Duration(days: now.weekday - 1));
   }
 
+  /// 🔥 CHARGEMENT OPTIMISÉ AVEC CACHE
   Future<void> _loadData() async {
     setState(() => isLoading = true);
 
     try {
-      // 🔥 NETTOYER LES CACHES AVANT DE RECHARGER
-      _couleursCache.clear();
-      emplois.clear();
+      // 🔥 INVALIDATION CACHE INTELLIGENTE
+      final newCacheKey = _generateCacheKey();
+      if (_lastCacheKey != newCacheKey) {
+        _invalidateCache();
+        _lastCacheKey = newCacheKey;
+      }
 
-      print('🧹 Cache nettoyé - Rechargement des données...');
-
-      // 1. Récupérer les données utilisateur depuis SharedPreferences
+      // 1. Charger données utilisateur (avec cache SharedPreferences)
       await _loadUserData();
 
-      // 2. Récupérer les données spécifiques de l'élève
+      // 2. Charger données élève (avec cache service)
       await _loadEleveData();
 
-      // 3. Récupérer tous les emplois du temps
-      final emploisResult = await EmploiDuTempsService.getEmploisEleve();
+      // 3. 🔥 CHARGEMENT OPTIMISÉ AVEC DATES
+      final dateDebut = _formatDateForApi(selectedWeek);
+      final dateFin = _formatDateForApi(selectedWeek.add(const Duration(days: 6)));
+
+      final emploisResult = await EmploiDuTempsService.getEmploisEleve(
+        dateDebut: dateDebut,
+        dateFin: dateFin,
+        perPage: 50,
+      );
 
       setState(() {
         emplois = emploisResult;
         isLoading = false;
       });
 
-      print('✅ ${emplois.length} emplois chargés pour l\'élève');
-      print('🎯 Métier élève ID: $eleveMetierId');
+      print('✅ ${emplois.length} emplois chargés pour l\'élève (${dateDebut} à ${dateFin})');
 
     } catch (e) {
       setState(() => isLoading = false);
       _showError('Erreur de chargement: $e');
     }
+  }
+
+  /// 🔥 GÉNÉRATION CLÉ CACHE INTELLIGENTE
+  String _generateCacheKey() {
+    final weekStart = _formatDateForApi(selectedWeek);
+    return '${typeAffichage}_${weekStart}_${eleveMetierId ?? 'no_metier'}';
+  }
+
+  /// 🔥 INVALIDATION CACHE CIBLÉE
+  void _invalidateCache() {
+    _coursCache.clear();
+    _couleursCache.clear();
+    print('🧹 Cache invalidé pour nouvelle période/vue');
   }
 
   Future<void> _loadUserData() async {
@@ -112,130 +126,109 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
       if (result['success'] && result['data'] != null) {
         setState(() {
           eleveData = result['data'];
-          // Récupérer l'ID du métier/filière de l'élève
           eleveMetierId = eleveData?['metier']?['id'];
         });
       }
     }
   }
 
-  // 🎯 FILTRAGE PAR FILIÈRE DE L'ÉLÈVE - VERSION CORRIGÉE
+  /// 🔥 FILTRAGE OPTIMISÉ AVEC CACHE
   Map<String, dynamic>? _getCoursForSlot(String jour, String creneau) {
-    final jourIndex = joursSemai.indexOf(jour);
-    if (jourIndex == -1) return null;
+    final slotKey = '${jour}_${creneau}';
 
-    // 🔥 CALCULER LA DATE RÉELLE DU JOUR
+    // 🔥 VÉRIFIER CACHE D'ABORD
+    if (_coursCache.containsKey(slotKey)) {
+      return _coursCache[slotKey];
+    }
+
+    final jourIndex = joursSemai.indexOf(jour);
+    if (jourIndex == -1) {
+      _coursCache[slotKey] = null;
+      return null;
+    }
+
+    // Gestion pause déjeuner
+    if (creneau == '13h - 14h') {
+      final pauseData = {'type': 'pause'};
+      _coursCache[slotKey] = pauseData;
+      return pauseData;
+    }
+
+    // 🔥 CALCUL OPTIMISÉ DE LA DATE
     DateTime dateRealDuJour;
     if (typeAffichage == 'jour') {
-      // En mode jour, selectedWeek contient déjà la date exacte du jour affiché
       dateRealDuJour = selectedWeek;
     } else {
-      // En mode semaine, calculer la date à partir du lundi (selectedWeek)
       dateRealDuJour = selectedWeek.add(Duration(days: jourIndex));
     }
 
-    final dateString = _formatDateDisplay(dateRealDuJour);
-    print('🔍 Recherche cours pour: $jour ($dateString) à $creneau');
-
-    // Extraire l'heure du créneau
     final heureCreneauDebut = int.tryParse(creneau.split('h')[0]) ?? 0;
 
-    // Gérer la pause déjeuner
-    if (creneau == '13h - 14h') {
-      return {'type': 'pause'};
-    }
+    // 🔥 RECHERCHE OPTIMISÉE
+    Map<String, dynamic>? coursCorrespondant = _findMatchingCours(
+        dateRealDuJour,
+        heureCreneauDebut
+    );
 
-    // 🔥 RECHERCHE DANS LES EMPLOIS - LOGIQUE STRICTE
-    Map<String, dynamic>? coursCorrespondant;
+    // 🔥 MISE EN CACHE
+    _coursCache[slotKey] = coursCorrespondant;
+    return coursCorrespondant;
+  }
 
+  /// 🔥 RECHERCHE COURS OPTIMISÉE
+  Map<String, dynamic>? _findMatchingCours(DateTime dateRecherce, int heureCreneauDebut) {
     for (var emploi in emplois) {
       try {
         final dateEmploi = DateTime.tryParse(emploi['date_debut'] ?? '');
-        if (dateEmploi == null) {
-          print('❌ Date emploi invalide: ${emploi['date_debut']}');
-          continue;
-        }
+        if (dateEmploi == null || !_sameDay(dateEmploi, dateRecherce)) continue;
 
-        // 🔥 VÉRIFICATION STRICTE DE LA DATE
-        if (!_sameDay(dateEmploi, dateRealDuJour)) {
-          continue; // Pas le bon jour
-        }
-
-        print('📅 Emploi trouvé pour le bon jour: ${_formatDateDisplay(dateEmploi)}');
-
-        // Extraire heures de début et fin
+        // 🔥 PARSING HEURE OPTIMISÉ
         final heureDebutStr = emploi['heure_debut']?.toString() ?? '';
         final heureFinStr = emploi['heure_fin']?.toString() ?? '';
 
-        if (heureDebutStr.isEmpty || heureFinStr.isEmpty) {
-          print('❌ Heures manquantes pour emploi ${emploi['id']}');
-          continue;
-        }
+        if (heureDebutStr.isEmpty) continue;
 
-        int heureEmploiDebut, heureEmploiFin;
+        final heureEmploiDebut = _parseHeure(heureDebutStr);
+        final heureEmploiFin = _parseHeure(heureFinStr);
 
-        if (heureDebutStr.contains('T')) {
-          heureEmploiDebut = int.tryParse(heureDebutStr.split('T')[1].substring(0, 2)) ?? 0;
-          heureEmploiFin = int.tryParse(heureFinStr.split('T')[1].substring(0, 2)) ?? 0;
-        } else {
-          heureEmploiDebut = int.tryParse(heureDebutStr.split(':')[0]) ?? 0;
-          heureEmploiFin = int.tryParse(heureFinStr.split(':')[0]) ?? 0;
-        }
-
-        print('⏰ Vérification horaire: $heureCreneauDebut dans [$heureEmploiDebut-$heureEmploiFin]');
-
-        // Vérifier si le créneau est couvert par ce cours
+        // Vérifier si le créneau correspond
         if (heureCreneauDebut >= heureEmploiDebut && heureCreneauDebut < heureEmploiFin) {
-          print('✅ Horaire correspond !');
-
-          // 🎯 FILTRAGE PAR FILIÈRE DE L'ÉLÈVE
-          final competences = emploi['competences'] as List<dynamic>? ?? [];
-          bool coursValidePourEleve = false;
-
-          if (competences.isEmpty) {
-            print('📝 Cours sans compétences = cours commun');
-            coursValidePourEleve = true;
-          } else {
-            for (var competence in competences) {
-              final metierCours = competence['metier'];
-
-              if (metierCours == null) {
-                print('📝 Compétence sans métier = cours commun');
-                coursValidePourEleve = true;
-                break;
-              } else if (eleveMetierId != null && metierCours['id'] == eleveMetierId) {
-                print('🎯 Cours pour le métier ${metierCours['intitule']} = MATCH !');
-                coursValidePourEleve = true;
-                break;
-              } else {
-                print('❌ Cours pour métier ${metierCours['intitule']} (ID: ${metierCours['id']}) ≠ élève métier (ID: $eleveMetierId)');
-              }
-            }
+          // 🔥 FILTRAGE MÉTIER OPTIMISÉ
+          if (_isCoursValidePourEleve(emploi)) {
+            return emploi;
           }
-
-          if (coursValidePourEleve) {
-            final coursNom = competences.isNotEmpty ? competences[0]['nom'] : 'Cours libre';
-            print('✅ COURS TROUVÉ: $coursNom');
-            coursCorrespondant = emploi;
-            break; // Prendre le premier cours trouvé
-          } else {
-            print('❌ Cours pas pour cette filière');
-          }
-        } else {
-          print('❌ Horaire ne correspond pas');
         }
-
       } catch (e) {
-        print('❌ Erreur traitement emploi ${emploi['id']}: $e');
         continue;
       }
     }
+    return null;
+  }
 
-    if (coursCorrespondant == null) {
-      print('🔍 Aucun cours trouvé pour $jour ($dateString) à $creneau');
+  /// 🔥 PARSING HEURE OPTIMISÉ
+  int _parseHeure(String heureStr) {
+    if (heureStr.contains('T')) {
+      return int.tryParse(heureStr.split('T')[1].substring(0, 2)) ?? 0;
+    } else {
+      return int.tryParse(heureStr.split(':')[0]) ?? 0;
     }
+  }
 
-    return coursCorrespondant;
+  /// 🔥 VALIDATION COURS POUR ÉLÈVE OPTIMISÉE
+  bool _isCoursValidePourEleve(Map<String, dynamic> emploi) {
+    final competences = emploi['competences'] as List<dynamic>? ?? [];
+
+    if (competences.isEmpty) return true; // Cours commun
+
+    for (var competence in competences) {
+      final metierCours = competence['metier'];
+      if (metierCours == null) return true; // Cours commun
+
+      if (eleveMetierId != null && metierCours['id'] == eleveMetierId) {
+        return true; // Cours pour ce métier
+      }
+    }
+    return false;
   }
 
   bool _sameDay(DateTime date1, DateTime date2) {
@@ -244,29 +237,24 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
         date1.day == date2.day;
   }
 
+  /// 🔥 COULEUR COURS AVEC CACHE INTELLIGENT
   Color _getCouleurCours(Map<String, dynamic> emploi) {
-    if (emploi['type'] == 'pause') {
-      return const Color(0xFF6B7280);
-    }
-
-    if (emploi['type'] == 'ferie') {
-      return const Color(0xFFEF4444);
-    }
+    if (emploi['type'] == 'pause') return const Color(0xFF6B7280);
+    if (emploi['type'] == 'ferie') return const Color(0xFFEF4444);
 
     final competences = emploi['competences'] as List<dynamic>? ?? [];
     if (competences.isEmpty) return Colors.grey.shade300;
 
     final premierCours = competences[0];
-    final competenceId = premierCours['id']?.toString() ?? '';
-    final codeCours = premierCours['code']?.toString() ?? '';
-    final nomCours = premierCours['nom']?.toString() ?? '';
 
-    final cleUnique = '$competenceId-$codeCours-$nomCours';
+    // 🔥 CLÉ CACHE OPTIMISÉE
+    final cleUnique = '${premierCours['id']}_${premierCours['code']}'.hashCode.toString();
 
     if (_couleursCache.containsKey(cleUnique)) {
       return _couleursCache[cleUnique]!;
     }
 
+    // 🔥 GÉNÉRATION COULEUR DÉTERMINISTE
     final hashCode = cleUnique.hashCode.abs();
     final colorIndex = hashCode % _paletteColors.length;
     final couleur = _paletteColors[colorIndex];
@@ -275,14 +263,60 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
     return couleur;
   }
 
+  /// 🔥 CHANGEMENT DE PÉRIODE OPTIMISÉ
+  void _changerPeriode(int delta) {
+    setState(() {
+      if (typeAffichage == 'semaine') {
+        selectedWeek = selectedWeek.add(Duration(days: 7 * delta));
+      } else {
+        selectedWeek = selectedWeek.add(Duration(days: delta));
+      }
+    });
+
+    // 🔥 RECHARGEMENT INTELLIGENT (seulement si nécessaire)
+    _loadDataIfNeeded();
+  }
+
+  /// 🔥 CHARGEMENT CONDITIONNEL
+  Future<void> _loadDataIfNeeded() async {
+    final newCacheKey = _generateCacheKey();
+    if (_lastCacheKey != newCacheKey) {
+      await _loadData();
+    }
+  }
+
+  /// 🔥 CHANGEMENT MODE VUE OPTIMISÉ
+  void _changerModeVue() {
+    setState(() {
+      typeAffichage = typeAffichage == 'semaine' ? 'jour' : 'semaine';
+      final now = DateTime.now();
+
+      if (typeAffichage == 'jour') {
+        selectedWeek = now;
+      } else {
+        selectedWeek = now.subtract(Duration(days: now.weekday - 1));
+      }
+    });
+
+    // 🔥 INVALIDATION ET RECHARGEMENT
+    _invalidateCache();
+    _loadData();
+  }
+
+  String _formatDateForApi(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
   String _formatDateDisplay(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
@@ -300,27 +334,15 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
         actions: [
           IconButton(
             icon: Icon(typeAffichage == 'semaine' ? Icons.view_day : Icons.view_week),
-            onPressed: () {
-              setState(() {
-                typeAffichage = typeAffichage == 'semaine' ? 'jour' : 'semaine';
-                // 🔥 RECALCULER LA DATE SELON LE NOUVEAU MODE
-                final now = DateTime.now();
-                if (typeAffichage == 'jour') {
-                  // Passer en mode jour = afficher aujourd'hui
-                  selectedWeek = now;
-                } else {
-                  // Passer en mode semaine = afficher la semaine actuelle
-                  selectedWeek = now.subtract(Duration(days: now.weekday - 1));
-                }
-                // 🔥 FORCER LE REBUILD COMPLET
-                _forceRebuild();
-              });
-            },
+            onPressed: _changerModeVue,
             tooltip: typeAffichage == 'semaine' ? 'Vue jour' : 'Vue semaine',
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
+            onPressed: () {
+              _invalidateCache();
+              _loadData();
+            },
             tooltip: 'Actualiser',
           ),
         ],
@@ -349,16 +371,9 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
     if (eleveData != null) {
       metierInfo = eleveData!['metier']?['intitule'] ?? 'Non défini';
 
-      // Récupérer l'année depuis les emplois filtrés
+      // 🔥 OPTIMISATION : Chercher l'année dans les emplois cachés
       final emploisEleve = emplois.where((emploi) {
-        final competences = emploi['competences'] as List<dynamic>? ?? [];
-        for (var competence in competences) {
-          final metierCours = competence['metier'];
-          if (metierCours != null && metierCours['id'] == eleveMetierId) {
-            return true;
-          }
-        }
-        return false;
+        return _isCoursValidePourEleve(emploi);
       }).toList();
 
       if (emploisEleve.isNotEmpty) {
@@ -411,6 +426,25 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
                 ),
               ),
             ),
+
+          // 🔥 AJOUT : Info cache
+          if (_coursCache.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green.shade600.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '📦 ${_coursCache.length} créneaux en cache',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -436,17 +470,7 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
           Row(
             children: [
               IconButton(
-                onPressed: () {
-                  setState(() {
-                    if (typeAffichage == 'semaine') {
-                      selectedWeek = selectedWeek.subtract(const Duration(days: 7));
-                    } else {
-                      selectedWeek = selectedWeek.subtract(const Duration(days: 1));
-                    }
-                    // 🔥 FORCER LE REBUILD COMPLET
-                    _forceRebuild();
-                  });
-                },
+                onPressed: () => _changerPeriode(-1),
                 icon: const Icon(Icons.chevron_left),
                 tooltip: typeAffichage == 'semaine' ? 'Semaine précédente' : 'Jour précédent',
               ),
@@ -473,17 +497,7 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
               ),
 
               IconButton(
-                onPressed: () {
-                  setState(() {
-                    if (typeAffichage == 'semaine') {
-                      selectedWeek = selectedWeek.add(const Duration(days: 7));
-                    } else {
-                      selectedWeek = selectedWeek.add(const Duration(days: 1));
-                    }
-                    // 🔥 FORCER LE REBUILD COMPLET
-                    _forceRebuild();
-                  });
-                },
+                onPressed: () => _changerPeriode(1),
                 icon: const Icon(Icons.chevron_right),
                 tooltip: typeAffichage == 'semaine' ? 'Semaine suivante' : 'Jour suivant',
               ),
@@ -500,9 +514,9 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
                 } else {
                   selectedWeek = now;
                 }
-                // 🔥 FORCER LE REBUILD COMPLET
-                _forceRebuild();
               });
+              _invalidateCache();
+              _loadData();
             },
             icon: const Icon(Icons.today, size: 16),
             label: const Text('Auj'),
@@ -520,22 +534,6 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
     );
   }
 
-  // 🔥 MÉTHODE POUR FORCER LE REBUILD COMPLET
-  void _forceRebuild() {
-    // Nettoyer TOUT
-    _couleursCache.clear();
-
-    // Marquer comme nécessitant un rebuild
-    if (mounted) {
-      setState(() {
-        // Force la reconstruction complète du widget
-      });
-    }
-
-    print('🔄 REBUILD FORCÉ - Cache nettoyé pour la nouvelle période');
-    print('📅 Nouvelle période: ${_formatDateDisplay(selectedWeek)} (${typeAffichage})');
-  }
-
   Widget _buildGrilleEmploi() {
     if (typeAffichage == 'jour') {
       return _buildVueJour();
@@ -544,6 +542,7 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
     }
   }
 
+  /// 🔥 VUE JOUR OPTIMISÉE
   Widget _buildVueJour() {
     final jourIndex = selectedWeek.weekday - 1;
     final nomJour = jourIndex < joursSemai.length ? joursSemai[jourIndex] : 'DIMANCHE';
@@ -578,15 +577,20 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
                 ),
               ),
             ),
-            // Créneaux du jour
-            ...creneauxHoraires.map((creneau) {
-              final cours = _getCoursForSlot(nomJour, creneau);
-              return _buildCreneauJour(creneau, cours);
-            }).toList(),
+            // 🔥 OPTIMISATION : Générer les créneaux une seule fois
+            ..._buildCreneauxJour(nomJour),
           ],
         ),
       ),
     );
+  }
+
+  /// 🔥 GÉNÉRATION CRÉNEAUX OPTIMISÉE
+  List<Widget> _buildCreneauxJour(String nomJour) {
+    return creneauxHoraires.map((creneau) {
+      final cours = _getCoursForSlot(nomJour, creneau);
+      return _buildCreneauJour(creneau, cours);
+    }).toList();
   }
 
   Widget _buildCreneauJour(String creneau, Map<String, dynamic>? cours) {
@@ -626,6 +630,7 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
     );
   }
 
+  /// 🔥 VUE SEMAINE OPTIMISÉE
   Widget _buildVueSemaine() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -643,9 +648,7 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: creneauxHoraires.map((creneau) {
-                    return _buildCreneauRow(creneau);
-                  }).toList(),
+                  children: _buildCreneauxSemaine(),
                 ),
               ),
             ),
@@ -653,6 +656,13 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
         ),
       ),
     );
+  }
+
+  /// 🔥 GÉNÉRATION CRÉNEAUX SEMAINE OPTIMISÉE
+  List<Widget> _buildCreneauxSemaine() {
+    return creneauxHoraires.map((creneau) {
+      return _buildCreneauRow(creneau);
+    }).toList();
   }
 
   Widget _buildHeaderRow() {
@@ -726,13 +736,19 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
               textAlign: TextAlign.center,
             ),
           ),
-          ...joursSemai.map((jour) {
-            final cours = isPause ? {'type': 'pause'} : _getCoursForSlot(jour, creneau);
-            return _buildCoursCell(cours, isPause);
-          }).toList(),
+          // 🔥 OPTIMISATION : Générer cellules en une passe
+          ..._buildCellsForCreneau(creneau, isPause),
         ],
       ),
     );
+  }
+
+  /// 🔥 GÉNÉRATION CELLULES OPTIMISÉE
+  List<Widget> _buildCellsForCreneau(String creneau, bool isPause) {
+    return joursSemai.map((jour) {
+      final cours = isPause ? {'type': 'pause'} : _getCoursForSlot(jour, creneau);
+      return _buildCoursCell(cours, isPause);
+    }).toList();
   }
 
   Widget _buildCoursCell(Map<String, dynamic>? cours, bool isPause) {
@@ -749,6 +765,7 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
     );
   }
 
+  /// 🔥 CONTENU COURS OPTIMISÉ
   Widget _buildCoursContent(Map<String, dynamic> cours, bool isPause) {
     if (isPause) {
       return const Center(
@@ -821,5 +838,13 @@ class _EleveEmploiViewState extends State<EleveEmploiView> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    // 🔥 NETTOYAGE MÉMOIRE
+    _coursCache.clear();
+    _couleursCache.clear();
+    super.dispose();
   }
 }
